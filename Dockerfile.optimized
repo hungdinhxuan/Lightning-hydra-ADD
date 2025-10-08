@@ -33,7 +33,7 @@ COPY pyproject.toml uv.lock README.md /project
 
 # Building deps
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --no-dev --no-install-project --frozen
+    uv sync --no-dev --no-install-project --frozen --no-cache
 
 COPY ./fairseq_lib /project/fairseq_lib
 # Building fairseq_lib

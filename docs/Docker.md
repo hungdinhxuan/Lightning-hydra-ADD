@@ -24,7 +24,7 @@ docker build -t <name_image> .
 
 ## run container
 ```bash
-docker run --name lha --gpus '"device=3"' \
+docker run --rm --name lha --gpus '"device=3"' \
   -v /nvme2:/nvme2 \
   -v /data:/data \
   -v /nvme1:/nvme1 \
@@ -32,7 +32,21 @@ docker run --name lha --gpus '"device=3"' \
   -v /nvme1/hungdx/Lightning-hydra/pretrained:/project/pretrained \
   --env-file .env \
   -e OMP_NUM_THREADS=5 \
+  --ipc=host \
   lightning-hydra-add
+```
+### lightweight-version
+```bash
+docker run --rm --name lhalw --gpus '"device=3"' \
+  -v /nvme2:/nvme2 \
+  -v /data:/data \
+  -v /nvme1:/nvme1 \
+  -v /nvme1/hungdx/Lightning-hydra/data:/project/data \
+  -v /nvme1/hungdx/Lightning-hydra/pretrained:/project/pretrained \
+  --env-file .env \
+  -e OMP_NUM_THREADS=5 \
+  --ipc=host \
+  lightning-hydra-add-lw
 ```
 
 ## Test to make sure gpu avaiable
@@ -44,3 +58,6 @@ docker exec -it <container_id> python -c "import torch; print(torch.cuda.is_avai
 ```bash
 docker exec -it lha python src/train.py experiment=xlsr_conformertcm_mdt ++model_averaging=True
 ```
+
+# References
+https://mveg.es/posts/optimizing-pytorch-docker-images-cut-size-by-60percent/
