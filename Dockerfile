@@ -13,10 +13,12 @@ COPY --link --from=ghcr.io/astral-sh/uv:0.7.14 /uv /usr/local/bin/uv
 RUN apt-get update --quiet && \
     apt-get upgrade -y && \
     apt-get install --quiet --no-install-recommends -y build-essential git ca-certificates \
-    libgl1 libglib2.0-0 libusb-1.0-0-dev && \
-    # Forcing http 1.1 to fix https://stackoverflow.com/q/59282476
-    git config --global http.version HTTP/1.1 && \
-    uv python install $python_version
+    libgl1 libglib2.0-0 libusb-1.0-0-dev && libsndfile1 && ffmpeg 
+
+# Forcing http 1.1 to fix https://stackoverflow.com/q/59282476
+RUN git config --global http.version HTTP/1.1 && \
+    uv python install $python_version && \
+    rm -rf /var/lib/apt/lists/*
 
 ENV UV_PYTHON="python$python_version" \
     UV_PYTHON_DOWNLOADS=never \
@@ -39,7 +41,7 @@ COPY ./fairseq_lib /project/fairseq_lib
 # Building fairseq_lib
 # cd to /project/fairseq_lib and run uv pip install -e .
 RUN cd fairseq_lib && \
-    uv pip install -e ./
+    uv pip install -e ./ -vvv
 
 #ENV PYTHONPATH="$PYTHONPATH:/project/fairseq_lib"
 # Copying the rest of the project files
