@@ -13,7 +13,7 @@ COPY --link --from=ghcr.io/astral-sh/uv:0.7.14 /uv /usr/local/bin/uv
 RUN apt-get update --quiet && \
     apt-get upgrade -y && \
     apt-get install --quiet --no-install-recommends -y build-essential git ca-certificates \
-    libgl1 libglib2.0-0 libusb-1.0-0-dev && libsndfile1 && ffmpeg 
+    libgl1 libglib2.0-0 libusb-1.0-0-dev libsndfile1 ffmpeg 
 
 # Forcing http 1.1 to fix https://stackoverflow.com/q/59282476
 RUN git config --global http.version HTTP/1.1 && \
