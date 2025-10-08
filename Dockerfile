@@ -24,7 +24,8 @@ ENV UV_PYTHON="python$python_version" \
     PYTHONFAULTHANDLER=1 \
     PYTHONUNBUFFERED=1 \
     UV_COMPILE_BYTECODE=1 \
-    PYTHONOPTIMIZE=1
+    PYTHONOPTIMIZE=1 \
+    PATH="/app/bin:$PATH"
 
 WORKDIR /project
 COPY pyproject.toml uv.lock README.md /project
@@ -37,11 +38,15 @@ COPY ./fairseq_lib /project/fairseq_lib
 # Building fairseq_lib
 # cd to /project/fairseq_lib and run uv pip install -e .
 RUN cd fairseq_lib && \
-    uv pip install -e ./ --python /app/bin/python
+    uv pip install -e ./
 
-
+#ENV PYTHONPATH="$PYTHONPATH:/project/fairseq_lib"
 # Copying the rest of the project files
+COPY ./.project-root /project/.project-root
 COPY ./src /project/src
 COPY ./scripts /project/scripts
-COPY ./tests /project/tests
 COPY ./configs /project/configs
+
+
+# Default command to keep container alive (so we can exec into it or run commands)
+CMD ["sleep", "infinity"]

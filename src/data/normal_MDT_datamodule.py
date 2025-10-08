@@ -144,7 +144,7 @@ class Dataset_for_eval(Dataset_base):
         return x_inp, utt_id
 
 
-class NormalDataModule(LightningDataModule):
+class NormalMDTDataModule(LightningDataModule):
     """`LightningDataModule` for the ASVSpoof dataset.
 
     The ASVspoof 2019 database for logical access is based upon a standard multi-speaker speech synthesis database called VCTK2. 

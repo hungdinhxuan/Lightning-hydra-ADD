@@ -1,7 +1,7 @@
 import torch
 from typing import Any, Dict, Tuple, Union
 from src.models.base.mdt_module import MDTLitModule
-from src.models.components.xlsr_conformertcm_baseline import Model as XLSRConformerTCM
+from src.models.components.xlsr_conformertcm import Model as XLSRConformerTCM
 
 class XLSRConformertcmMDTLitModule(MDTLitModule):
     def __init__(
