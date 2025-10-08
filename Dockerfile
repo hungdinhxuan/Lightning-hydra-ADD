@@ -41,7 +41,7 @@ COPY ./fairseq_lib /project/fairseq_lib
 # Building fairseq_lib
 # cd to /project/fairseq_lib and run uv pip install -e .
 RUN cd fairseq_lib && \
-    uv pip install -e ./ -vvv
+    uv pip install --no-cache-dir -e ./ -vvv
 
 #ENV PYTHONPATH="$PYTHONPATH:/project/fairseq_lib"
 # Copying the rest of the project files
