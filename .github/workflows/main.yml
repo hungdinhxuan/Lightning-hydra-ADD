@@ -53,7 +53,7 @@ jobs:
           push: true  # push to GHCR
           tags: ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
           cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache,new
+          cache-to: type=local,dest=/tmp/.buildx-cache
 
       # 6. Optional: Add 'latest' tag
       - name: Tag latest
