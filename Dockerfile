@@ -40,6 +40,8 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 COPY ./fairseq_lib /project/fairseq_lib
 # Building fairseq_lib
 # cd to /project/fairseq_lib and run uv pip install -e .
+RUN rm -rf /root/.cache/uv/*
+
 RUN cd fairseq_lib && \
     uv pip install --no-cache-dir -e ./ -vvv
 
