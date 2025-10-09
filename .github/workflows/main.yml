@@ -1,68 +1,3 @@
-# name: Build and Push Docker Image
-
-# on:
-#   push:
-#     branches:
-#       - main
-#       - 'v*.*.*' # optional: build on version tags
-#   workflow_dispatch:  # manual trigger
-
-# jobs:
-#   build:
-#     runs-on: ubuntu-22.04
-#     permissions:
-#       contents: read
-#       packages: write  # needed to push to GHCR
-#       id-token: write  # optional if using OIDC
-#     env:
-#       IMAGE_NAME: lightning-hydra-add
-#       IMAGE_VERSION: ${{ github.sha }}  # can change to tag or env variable
-
-#     steps:
-#       # 1. Checkout repository
-#       - name: Checkout code
-#         uses: actions/checkout@v3
-
-#       # 2. Log in to GHCR
-#       - name: Log in to GHCR (Org)
-#         uses: docker/login-action@v2
-#         with:
-#           registry: ghcr.io
-#           username: ${{ github.actor }}
-#           password: ${{ secrets.ORG_GHCR_PAT }}
-
-#       # 3. Set up Docker Buildx (for multi-platform if needed)
-#       - name: Set up Docker Buildx
-#         uses: docker/setup-buildx-action@v3
-
-#       # 4. Cache Docker layers
-#       - name: Cache Docker layers
-#         uses: actions/cache@v3
-#         with:
-#           path: /tmp/.buildx-cache
-#           key: ${{ runner.os }}-docker-${{ github.sha }}
-#           restore-keys: |
-#             ${{ runner.os }}-docker-
-
-#       # 5. Build Docker image
-#       - name: Build Docker image
-#         uses: docker/build-push-action@v5
-#         with:
-#           context: .
-#           file: ./Dockerfile
-#           push: true  # push to GHCR
-#           tags: ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
-#           cache-from: type=local,src=/tmp/.buildx-cache
-#           cache-to: type=local,dest=/tmp/.buildx-cache
-
-#       # 6. Optional: Add 'latest' tag
-#       - name: Tag latest
-#         if: github.ref == 'refs/heads/main'
-#         run: |
-#           docker pull ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
-#           docker tag ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }} ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:latest
-#           docker push ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:latest
-
 name: Build and Push Docker Image
 
 on:
@@ -102,8 +37,8 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       # 4. Optional: Clean up Docker to free space
-      - name: Clean up Docker
-        run: docker system prune -af
+      # - name: Clean up Docker
+      #   run: docker system prune -af
 
       # 5. Build and push Docker image with registry cache
       - name: Build and Push Docker Image
@@ -115,7 +50,7 @@ jobs:
           tags: ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:${{ env.IMAGE_VERSION }}
           cache-from: type=registry,ref=ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:cache
           cache-to: type=registry,ref=ghcr.io/cnsl-aisrc/${{ env.IMAGE_NAME }}:cache,mode=max
-          squash: true
+          # squash: true
 
       # 6. Optional: Add 'latest' tag
       - name: Tag latest
