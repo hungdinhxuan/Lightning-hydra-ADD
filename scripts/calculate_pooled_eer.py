@@ -19,6 +19,8 @@ import sys
 import os
 import subprocess
 import tempfile
+import json
+from datetime import datetime
 from pathlib import Path
 
 
@@ -246,6 +248,35 @@ def calculate_pooled_eer(results_folder, normalized_yaml, comment, benchmark_fol
                 eer = parts[3]
                 accuracy = parts[4]
                 
+                # Create JSON results structure
+                json_results = {
+                    'pooled_results': {
+                        'min_score': float(min_score),
+                        'max_score': float(max_score),
+                        'threshold': float(threshold),
+                        'eer': float(eer),
+                        'accuracy': float(accuracy),
+                        'total_entries': total_entries,
+                        'processed_datasets': processed_datasets
+                    },
+                    'dataset_stats': dataset_stats,
+                    'metadata': {
+                        'normalized_yaml': normalized_yaml,
+                        'comment': comment,
+                        'timestamp': datetime.now().isoformat(),
+                        'calculation_type': 'pooled_eer'
+                    }
+                }
+                
+                # Save JSON results to file
+                json_output_path = os.path.join(results_folder, f"pooled_eer_{normalized_yaml}_{comment}.json")
+                try:
+                    with open(json_output_path, 'w') as json_file:
+                        json.dump(json_results, json_file, indent=2)
+                    print(f"✓ JSON results saved to: {json_output_path}", file=sys.stderr)
+                except Exception as e:
+                    print(f"⚠️ Warning: Failed to save JSON results: {e}", file=sys.stderr)
+                
                 # Output results in the same format as the bash script expects
                 print(f"{min_score} {max_score} {threshold} {eer} {accuracy}")
                 
@@ -266,7 +297,8 @@ def calculate_pooled_eer(results_folder, normalized_yaml, comment, benchmark_fol
                     'accuracy': accuracy,
                     'total_entries': total_entries,
                     'processed_datasets': processed_datasets,
-                    'dataset_stats': dataset_stats
+                    'dataset_stats': dataset_stats,
+                    'json_output_path': json_output_path
                 }
             else:
                 print("❌ Invalid result format from score calculation", file=sys.stderr)

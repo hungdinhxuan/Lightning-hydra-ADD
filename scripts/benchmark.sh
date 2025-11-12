@@ -512,6 +512,118 @@ print_color "$MAGENTA" "┌─────────────────�
 print_color "$MAGENTA" "│                    CALCULATING POOLED EER                       │"
 print_color "$MAGENTA" "└─────────────────────────────────────────────────────────────────┘"
 
+# Function to create JSON summary from individual results
+create_json_summary() {
+    print_color "$CYAN" "🔄 Creating comprehensive JSON summary..."
+    
+    local json_summary_file="$RESULTS_FOLDER/benchmark_summary_${NORMALIZED_YAML}_${COMMENT}.json"
+    local timestamp=$(date -Iseconds)
+    
+    # Start JSON structure
+    cat > "$json_summary_file" << EOF
+{
+  "metadata": {
+    "timestamp": "$timestamp",
+    "config": "$YAML_CONFIG",
+    "base_model_path": "$BASE_MODEL_PATH",
+    "adapter_paths": "${ADAPTER_PATHS:-null}",
+    "is_base_model_path_ln": $IS_BASE_MODEL_PATH_LN,
+    "is_random_start": $IS_RANDOM_START,
+    "trim_length": $TRIM_LENGTH,
+    "comment": "$COMMENT",
+    "total_datasets": $TOTAL_SUBFOLDERS
+  },
+  "individual_results": [
+EOF
+
+    # Add individual dataset results
+    local first_entry=true
+    while IFS='|' read -r dataset eer min_score max_score threshold accuracy; do
+        # Clean up whitespace
+        dataset=$(echo "$dataset" | xargs)
+        eer=$(echo "$eer" | xargs)
+        min_score=$(echo "$min_score" | xargs)
+        max_score=$(echo "$max_score" | xargs)
+        threshold=$(echo "$threshold" | xargs)
+        accuracy=$(echo "$accuracy" | xargs)
+        
+        # Skip header, empty lines, and summary entries
+        if [[ "$dataset" != "Dataset" && "$dataset" != "POOLED_EER" && "$dataset" != "AVERAGE_EER" && ! -z "$dataset" && ! -z "$eer" ]]; then
+            # Add comma for all entries except the first
+            if [ "$first_entry" = false ]; then
+                echo "    ," >> "$json_summary_file"
+            fi
+            first_entry=false
+            
+            # Add dataset entry
+            cat >> "$json_summary_file" << EOF
+    {
+      "dataset": "$dataset",
+      "eer": ${eer:-null},
+      "min_score": ${min_score:-null},
+      "max_score": ${max_score:-null},
+      "threshold": ${threshold:-null},
+      "accuracy": ${accuracy:-null}
+    }EOF
+        fi
+    done < "$SUMMARY_FILE"
+    
+    # Close individual_results array
+    echo "" >> "$json_summary_file"
+    echo "  ]," >> "$json_summary_file"
+    
+    # Add pooled and average results placeholders (will be filled later)
+    cat >> "$json_summary_file" << EOF
+  "pooled_results": null,
+  "average_results": null,
+  "files": {
+    "summary_txt": "$SUMMARY_FILE",
+    "merged_protocol": "$RESULTS_FOLDER/merged_protocol_${NORMALIZED_YAML}_${COMMENT}.txt",
+    "merged_scores": "$RESULTS_FOLDER/merged_scores_${NORMALIZED_YAML}_${COMMENT}.txt",
+    "protocol_metadata": "$RESULTS_FOLDER/pooled_merged_protocol_${NORMALIZED_YAML}_${COMMENT}.txt"
+  }
+}
+EOF
+
+    print_color "$GREEN" "✓ JSON summary created: $json_summary_file"
+    echo "$json_summary_file"  # Return the file path
+}
+
+# Function to update JSON summary with pooled results
+update_json_with_pooled_results() {
+    local json_file="$1"
+    local pooled_eer="$2"
+    local pooled_min_score="$3"
+    local pooled_max_score="$4"
+    local pooled_threshold="$5"
+    local pooled_accuracy="$6"
+    
+    # Create temporary file with updated pooled results
+    local temp_file=$(mktemp)
+    
+    # Use sed to replace the pooled_results null with actual data
+    sed "s|\"pooled_results\": null|\"pooled_results\": {\"eer\": $pooled_eer, \"min_score\": $pooled_min_score, \"max_score\": $pooled_max_score, \"threshold\": $pooled_threshold, \"accuracy\": $pooled_accuracy}|" "$json_file" > "$temp_file"
+    
+    mv "$temp_file" "$json_file"
+    print_color "$GREEN" "✓ JSON summary updated with pooled results"
+}
+
+# Function to update JSON summary with average results
+update_json_with_average_results() {
+    local json_file="$1"
+    local average_eer="$2"
+    local count="$3"
+    
+    # Create temporary file with updated average results
+    local temp_file=$(mktemp)
+    
+    # Use sed to replace the average_results null with actual data
+    sed "s|\"average_results\": null|\"average_results\": {\"average_eer\": $average_eer, \"dataset_count\": $count}|" "$json_file" > "$temp_file"
+    
+    mv "$temp_file" "$json_file"
+    print_color "$GREEN" "✓ JSON summary updated with average results"
+}
+
 # Function to calculate pooled EER using dedicated Python script
 calculate_pooled_eer() {
     print_color "$CYAN" "🔄 Calculating pooled EER using efficient Python implementation..."
@@ -560,6 +672,12 @@ calculate_pooled_eer() {
             # Add pooled EER to summary file
             echo "" >> "$SUMMARY_FILE"
             echo "POOLED_EER | $pooled_eer | $pooled_min_score | $pooled_max_score | $pooled_threshold | $pooled_accuracy" >> "$SUMMARY_FILE"
+            
+            # Update JSON summary with pooled results if it exists
+            local json_summary_file="$RESULTS_FOLDER/benchmark_summary_${NORMALIZED_YAML}_${COMMENT}.json"
+            if [ -f "$json_summary_file" ]; then
+                update_json_with_pooled_results "$json_summary_file" "$pooled_eer" "$pooled_min_score" "$pooled_max_score" "$pooled_threshold" "$pooled_accuracy"
+            fi
             
             # Display the detailed output from Python script (stderr)
             echo "$pooled_stderr" | while IFS= read -r line; do
@@ -617,6 +735,12 @@ calculate_average_eer() {
         
         # Add average EER to summary file
         echo "AVERAGE_EER | $average_eer | - | - | - | -" >> "$SUMMARY_FILE"
+        
+        # Update JSON summary with average results if it exists
+        local json_summary_file="$RESULTS_FOLDER/benchmark_summary_${NORMALIZED_YAML}_${COMMENT}.json"
+        if [ -f "$json_summary_file" ]; then
+            update_json_with_average_results "$json_summary_file" "$average_eer" "$count"
+        fi
         
         # Display average results
         print_color "$GREEN" "✓ Average EER Results (across $count datasets):"
@@ -731,6 +855,9 @@ create_merged_protocol() {
     fi
 }
 
+# Create initial JSON summary
+JSON_SUMMARY_FILE=$(create_json_summary)
+
 # Call the calculation functions
 calculate_pooled_eer
 calculate_average_eer
@@ -744,6 +871,8 @@ print_color "$MAGENTA" "│                       BENCHMARK COMPLETE            
 print_color "$MAGENTA" "└─────────────────────────────────────────────────────────────────┘"
 print_color "$GREEN" "✓ All benchmarks completed successfully!"
 print_color "$CYAN" "✓ Summary available at: $SUMMARY_FILE"
+print_color "$CYAN" "✓ JSON Summary available at: $JSON_SUMMARY_FILE"
+print_color "$CYAN" "✓ Pooled EER JSON available at: $RESULTS_FOLDER/pooled_eer_${NORMALIZED_YAML}_${COMMENT}.json"
 print_color "$CYAN" "✓ Merged protocol available at: $RESULTS_FOLDER/merged_protocol_${NORMALIZED_YAML}_${COMMENT}.txt"
 print_color "$CYAN" "✓ Merged scores available at: $RESULTS_FOLDER/merged_scores_${NORMALIZED_YAML}_${COMMENT}.txt"
 print_color "$CYAN" "✓ Protocol metadata available at: $RESULTS_FOLDER/pooled_merged_protocol_${NORMALIZED_YAML}_${COMMENT}.txt"

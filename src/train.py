@@ -7,6 +7,7 @@ import torch
 from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
+import sys
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
@@ -127,13 +128,23 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
         if ckpt_path == "":
             ckpt_path = cfg.get("ckpt_path")
             log.warning(f"Using weights {ckpt_path} for testing...")
+        
+        is_push_model_to_mlflow = cfg.get("push_model_to_mlflow", False)
+        if is_push_model_to_mlflow:
+            log.info("Pushing model to MLflow...")
+            # Loading checkpoint from ckpt_path
+            #model.
+            model_uri = model.push_model_and_artifacts_to_mlflow()
+            log.info(f"Model pushed to MLflow: {model_uri}")
+            sys.exit(0) 
+        
         from lightning.pytorch.utilities.model_summary import summarize
         model.eval()
         log.info("Model summary:")
         print(summarize(model, max_depth=2))
         trainer.test(model=model, datamodule=datamodule, ckpt_path=ckpt_path)
         log.info(f"Best ckpt path: {ckpt_path}")
-
+    
     test_metrics = trainer.callback_metrics
 
     # merge train and test metrics

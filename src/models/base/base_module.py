@@ -218,6 +218,43 @@ class BaseLitModule(LightningModule):
     
     def optimizer_zero_grad(self, epoch, batch_idx, optimizer):
         optimizer.zero_grad(set_to_none=True)
+    
+    def push_model_and_artifacts_to_mlflow(self):
+        """Push the model and artifacts to mlflow."""
+        import mlflow
+        from mlflow.models import infer_signature
+        import os
+        import requests
+        from requests.exceptions import RequestException
+        import time
+        from tqdm import tqdm
+        import json
+        
+        mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
+        experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME")
+        run_name = os.getenv("MLFLOW_RUN_NAME")
+        model_name = os.getenv("MLFLOW_MODEL_NAME")  # Set this to register the model
+
+        mlflow.set_tracking_uri(mlflow_uri)
+        mlflow.set_experiment(experiment_name)
+
+        print("\n=== Starting MLflow run ===", flush=True)
+        with mlflow.start_run(run_name=run_name) as run:
+            example_input = torch.randn(1, 64600) # 1 sample, 64600 features ~ 4 seconds of audio
+            signature = infer_signature(example_input, self.net(example_input))
+            print(f"Run ID: {run.info.run_id}", flush=True)
+            mlflow.pytorch.log_model(pytorch_model=self.net, artifact_path="pytorch_avg_last_model", registered_model_name=model_name, signature=signature,  metadata={
+            "input_description": "1D float32 tensor of raw audio waveform, sampled at 16kHz. Shape: [batch_size, 64600] (~4s audio)",
+            "output_description": "Float32 tensor with shape [batch_size, 1], representing probability of deepfake voice."
+            })
+            model_uri = f"{run.info.artifact_uri}/pytorch_avg_last_model"
+            print(f"Model URI: {model_uri}", flush=True)
+            # Save model uri to a file
+            model_uri_file = os.path.join(os.getenv("PVC_MOUNT_PATH"), "model_uri.json")
+            with open(model_uri_file, "w", encoding="utf-8") as f:
+                json.dump({"model_uri": model_uri}, f)
+            print(f"Model URI saved to {model_uri_file}", flush=True)
+            return model_uri
 
     def _export_embedding_file(self, batch: Tuple[torch.Tensor, torch.Tensor]) -> None:
         """ Get the embedding file for the batch of data.
