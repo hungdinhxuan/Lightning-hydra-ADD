@@ -50,3 +50,5 @@ seed: null
 
 # config.yaml
 model_averaging: null
+
+push_model_to_mlflow: False
