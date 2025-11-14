@@ -564,7 +564,8 @@ EOF
       "max_score": ${max_score:-null},
       "threshold": ${threshold:-null},
       "accuracy": ${accuracy:-null}
-    }EOF
+    }
+EOF
         fi
     done < "$SUMMARY_FILE"
     
