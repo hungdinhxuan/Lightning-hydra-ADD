@@ -1,5 +1,5 @@
 # ===== Stage 1: Builder =====
-FROM nvidia/cuda:12.8.1-base-ubuntu22.04 AS builder
+FROM nvidia/cuda:13.0.2-base-ubuntu24.04 AS builder
 
 SHELL ["/bin/sh", "-exc"]
 
@@ -46,7 +46,7 @@ RUN uv pip install --no-cache-dir -e ./fairseq_lib -vvv && \
     find /app -type f -name "*.so" -exec strip --strip-unneeded {} \; || true
 
 # ===== Stage 2: Runtime =====
-FROM nvidia/cuda:12.8.1-base-ubuntu22.04
+FROM nvidia/cuda:13.0.2-base-ubuntu24.04
 
 SHELL ["/bin/sh", "-exc"]
 
