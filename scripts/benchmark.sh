@@ -57,7 +57,7 @@ show_usage() {
     print_color "$BLUE" "│                 Bulk Benchmark Runner Script                    │"
     print_color "$BLUE" "└─────────────────────────────────────────────────────────────────┘"
     echo ""
-    print_color "$CYAN" "Usage: $0 -g <gpu_identifier> -c <yaml_config_file> -b <bulk_benchmark_folder> -m <base_model_path> -r <results_folder> -n <comment> [-a <adapter_paths>] [-l <is_base_model_path_ln>] [-s <is_random_start>] [-t <trim_length>]"
+    print_color "$CYAN" "Usage: $0 -g <gpu_identifier> -c <yaml_config_file> -b <bulk_benchmark_folder> -m <base_model_path> -r <results_folder> -n <comment> [-a <adapter_paths>] [-l <is_base_model_path_ln>] [-s <is_random_start>] [-t <trim_length>] [-z <batch_size>]"
     echo ""
     print_color "$YELLOW" "Parameters:"
     echo "  -g <gpu_identifier>         GPU identifier (index like 0/1 or MIG UUID like MIG-xxxx)"
@@ -70,6 +70,7 @@ show_usage() {
     echo "  -l <is_base_model_path_ln>  Whether to use Lightning checkpoint loading (default: true)"
     echo "  -s <is_random_start>        Whether to use random start (default: true)"
     echo "  -t <trim_length>            Trim length for data processing (default: 64000)"
+    echo "  -z <batch_size>             Batch size (default: auto-detect based on GPU memory)"
     exit 1
 }
 
@@ -86,7 +87,7 @@ print_banner() {
 print_banner
 
 # Parse command line arguments
-while getopts "g:c:b:m:r:n:a:l:s:t:" opt; do
+while getopts "g:c:b:m:r:n:a:l:s:t:z:" opt; do
     case $opt in
         g) GPU_NUMBER="$OPTARG" ;;
         c) YAML_CONFIG="$OPTARG" ;;
@@ -98,6 +99,7 @@ while getopts "g:c:b:m:r:n:a:l:s:t:" opt; do
         l) IS_BASE_MODEL_PATH_LN="$OPTARG" ;;
         s) IS_RANDOM_START="$OPTARG" ;;
         t) TRIM_LENGTH="$OPTARG" ;;
+        z) BATCH_SIZE="$OPTARG" ;;
         *) show_usage ;;
     esac
 done
@@ -131,8 +133,14 @@ if [ -z "$TRIM_LENGTH" ]; then
     TRIM_LENGTH="64000"
 fi
 
+# Set default value for BATCH_SIZE if not provided
+if [ -z "$BATCH_SIZE" ]; then
+    BATCH_SIZE="128"
+fi
+
 # print IS_RANDOM_START
 print_color "$CYAN" "IS_RANDOM_START: $IS_RANDOM_START"
+print_color "$CYAN" "BATCH_SIZE: $BATCH_SIZE"
 
 # Ensure benchmark folder exists
 if [ ! -d "$BENCHMARK_FOLDER" ]; then
@@ -424,7 +432,7 @@ for subfolder in "${SUBDIRS[@]}"; do
     CMD+="++model.score_save_path=\"$SCORE_PATH_TO_USE\" "
     CMD+="++data.data_dir=\"$DATA_DIR\" "
     CMD+="++data.args.protocol_path=\"$PROTOCOL_TO_USE\" "
-    CMD+="++train=False ++test=True ++model.spec_eval=True ++data.batch_size=1024 "
+    CMD+="++train=False ++test=True ++model.spec_eval=True ++data.batch_size=$BATCH_SIZE "
     CMD+="++data.args.random_start=$IS_RANDOM_START "
     CMD+="++data.args.trim_length=$TRIM_LENGTH "
     CMD+="++model.base_model_path=\"$BASE_MODEL_PATH\" "
