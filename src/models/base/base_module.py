@@ -229,6 +229,11 @@ class BaseLitModule(LightningModule):
         import time
         from tqdm import tqdm
         import json
+        import pandas as pd
+
+        results_folder = os.getenv("RESULTS_FOLDER_PATH")
+        merged_protocol_path = os.getenv("POOLED_PROTOCOL_PATH")
+        eval_dataset_name = os.getenv("EVAL_DATASET_NAME")
         
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
         experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME")
@@ -243,10 +248,34 @@ class BaseLitModule(LightningModule):
             example_input = torch.randn(1, 64600) # 1 sample, 64600 features ~ 4 seconds of audio
             signature = infer_signature(example_input, self.net(example_input))
             print(f"Run ID: {run.info.run_id}", flush=True)
-            mlflow.pytorch.log_model(pytorch_model=self.net, artifact_path="pytorch_avg_last_model", registered_model_name=model_name, signature=signature,  metadata={
+            model_info = mlflow.pytorch.log_model(pytorch_model=self.net, artifact_path="pytorch_avg_last_model", registered_model_name=model_name, signature=signature,  metadata={
             "input_description": "1D float32 tensor of raw audio waveform, sampled at 16kHz. Shape: [batch_size, 64600] (~4s audio)",
             "output_description": "Float32 tensor with shape [batch_size, 1], representing probability of deepfake voice."
             })
+
+
+            eval_raw_data =  pd.read_csv(merged_protocol_path, sep=" ", header=None)
+            eval_raw_data.columns = ["fname", "subset", "label"]
+            # Create a Dataset object
+            eval_dataset = mlflow.data.from_pandas(
+                eval_raw_data, source=merged_protocol_path, name=eval_dataset_name, targets="label"
+            )
+            mlflow.log_input(eval_dataset, context="evaluation")
+
+            # Log metric with model and dataset links
+            for file in os.listdir(results_folder):
+                print(file)
+                if file.endswith(".json") and file.startswith("benchmark_summary"):
+                    with open(os.path.join(results_folder, file), "r") as f:
+                        data = json.load(f)
+                        pooled_results = data["pooled_results"]
+                        break
+            mlflow.log_metric(key="eval_eer", value=pooled_results["eer"], 
+                model=model_info.model_uri, dataset=eval_dataset)
+
+            # Log artifacts
+            mlflow.log_artifact(results_folder)
+
             model_uri = f"{run.info.artifact_uri}/pytorch_avg_last_model"
             print(f"Model URI: {model_uri}", flush=True)
             # Save model uri to a file
