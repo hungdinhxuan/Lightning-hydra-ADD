@@ -278,6 +278,14 @@ class BaseLitModule(LightningModule):
 
             model_uri = f"{run.info.artifact_uri}/pytorch_avg_last_model"
             print(f"Model URI: {model_uri}", flush=True)
+            
+            # Check model again by loading it
+            loaded_model = mlflow.pytorch.load_model(model_uri)
+            y_pred = loaded_model(example_input)
+            print(f"predict X: {example_input}, y_pred: {y_pred}")
+            print("Model is ready to use in inference mode")
+            print("Trained model:", model_uri)
+            
             # Save model uri to a file
             model_uri_file = os.path.join(os.getenv("PVC_MOUNT_PATH"), "model_uri.json")
             with open(model_uri_file, "w", encoding="utf-8") as f:
