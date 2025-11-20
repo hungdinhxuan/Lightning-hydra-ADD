@@ -248,7 +248,7 @@ class BaseLitModule(LightningModule):
             example_input = torch.randn(1, 64600) # 1 sample, 64600 features ~ 4 seconds of audio
             signature = infer_signature(example_input, self.net(example_input))
             print(f"Run ID: {run.info.run_id}", flush=True)
-            model_info = mlflow.pytorch.log_model(pytorch_model=self.net, artifact_path="pytorch_avg_last_model", registered_model_name=model_name, signature=signature,  metadata={
+            model_info = mlflow.pytorch.log_model(pytorch_model=self.net, artifact_path="pytorch_avg_last_model",  registered_model_name=model_name, signature=signature,  code_paths=["src"], metadata={
             "input_description": "1D float32 tensor of raw audio waveform, sampled at 16kHz. Shape: [batch_size, 64600] (~4s audio)",
             "output_description": "Float32 tensor with shape [batch_size, 1], representing probability of deepfake voice."
             })
