@@ -270,7 +270,7 @@ class BaseLitModule(LightningModule):
                         data = json.load(f)
                         pooled_results = data["pooled_results"]
                         break
-            mlflow.log_metrics(pooled_results, dataset=eval_dataset)
+            mlflow.log_metrics(pooled_results)
             # Log artifacts
             mlflow.log_artifact(results_folder)
 
