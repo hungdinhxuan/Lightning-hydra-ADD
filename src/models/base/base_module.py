@@ -270,9 +270,7 @@ class BaseLitModule(LightningModule):
                         data = json.load(f)
                         pooled_results = data["pooled_results"]
                         break
-            mlflow.log_metric(key="eval_eer", value=pooled_results["eer"], 
-                model=model_info.model_uri, dataset=eval_dataset)
-
+            mlflow.log_metrics(pooled_results, dataset=eval_dataset)
             # Log artifacts
             mlflow.log_artifact(results_folder)
 
