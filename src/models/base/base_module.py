@@ -238,13 +238,25 @@ class BaseLitModule(LightningModule):
         mlflow_uri = os.getenv("MLFLOW_TRACKING_URI")
         experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME")
         run_name = os.getenv("MLFLOW_RUN_NAME")
+        run_id = os.getenv("MLFLOW_RUN_ID")
         model_name = os.getenv("MLFLOW_MODEL_NAME")  # Set this to register the model
 
         mlflow.set_tracking_uri(mlflow_uri)
         mlflow.set_experiment(experiment_name)
 
         print("\n=== Starting MLflow run ===", flush=True)
-        with mlflow.start_run(run_name=run_name) as run:
+        
+        # Handle mutual exclusivity between run_name and run_id
+        run_kwargs = {}
+        if run_name:
+            run_kwargs["run_name"] = run_name
+            # If run_name is specified, run_id should be None
+        elif run_id:
+            run_kwargs["run_id"] = run_id
+            # If run_id is specified, run_name should be None
+        print(f"Run kwargs: {run_kwargs}", flush=True)
+        
+        with mlflow.start_run(**run_kwargs) as run:
             example_input = torch.randn(1, 64600) # 1 sample, 64600 features ~ 4 seconds of audio
             signature = infer_signature(example_input, self.net(example_input))
             print(f"Run ID: {run.info.run_id}", flush=True)
