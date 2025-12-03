@@ -43,13 +43,13 @@ class AdapterLitModule(BaseLitModule):
         """Initializes the adapter type.
             This method should be called after the model is initialized.
         """
-        import mlflow
         is_base_model_path_ln = self.kwargs.get("is_base_model_path_ln", True)
         # Load base model if provided
         if self.base_model_path:
             # Check if the base model path start with s3
             if self.base_model_path.startswith("s3://"):
                 # Download the base model from s3
+                import mlflow
                 self.net = mlflow.pytorch.load_model(self.base_model_path)
                 print("Loaded baseline model from:", self.base_model_path)
             else:
