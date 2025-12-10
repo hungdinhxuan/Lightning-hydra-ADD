@@ -1,5 +1,5 @@
 _target_: src.data.normal_MDT_datamodule.NormalMDTDataModule
-data_dir: ${oc.env:LARGE_CORPUS_FOR_CNSL}
+data_dir: ""
 batch_size: 16 
 num_workers: 4
 pin_memory: True
@@ -7,7 +7,7 @@ enable_cache: false  # Enable caching at the top level
 args:
   # The number of views to use
   views: [1, 2, 3, 4]
-  protocol_path: ${oc.env:LARGE_CORPUS_FOR_CNSL_PROTOCOLS}
+  protocol_path: ""
   # Cache settings
   cache_dir: ${oc.env:CACHE_DIR}  # Directory for cache
   enable_cache: false  # Whether to enable caching in args

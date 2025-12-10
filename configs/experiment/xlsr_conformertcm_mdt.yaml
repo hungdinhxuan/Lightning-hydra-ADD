@@ -32,12 +32,12 @@ model:
 
 data:
   batch_size: 14
-  data_dir: ${oc.env:WILD_SPOOF_PATH}
+  data_dir: ""
   num_workers: 8
   pin_memory: true
   args:
     augmentation_methods: ["none"]
-    protocol_path: ${oc.env:WILD_SPOOF_PROTOCOL_PATH}
+    protocol_path: ""
     padding_type: repeat
     random_start: True
     view_padding_configs:

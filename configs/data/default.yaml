@@ -1,12 +1,12 @@
 _target_: src.data.normal_datamodule.NormalDataModule
-data_dir: ${oc.env:LARGE_CORPUS_FOR_CNSL}
-batch_size: 2 # Because of scl datamodule will be re-organized mini-batch size
+data_dir: ""
+batch_size: 16 
 num_workers: 4
 pin_memory: True
 enable_cache: false  # Enable caching at the top level
 args:
   # The sampling rate of the audio files
-  protocol_path: ${oc.env:LARGE_CORPUS_FOR_CNSL_PROTOCOLS}
+  protocol_path: ""
   # Cache settings
   cache_dir: ${oc.env:CACHE_DIR}  # Directory for cache
   enable_cache: True  # Whether to enable caching in args
