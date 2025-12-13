@@ -13,7 +13,8 @@ import torch
 import torch.nn as nn
 from torch.nn.modules.transformer import _get_clones
 from src.models.components.conformer import ConformerBlock
-
+from src.utils.prepare_model import prepare_model_from_s3
+import os
 def sinusoidal_embedding(n_channels, dim):
     pe = torch.FloatTensor([[p / (10000 ** (2 * (i // 2) / dim)) for i in range(dim)]
                             for p in range(n_channels)])
@@ -64,6 +65,19 @@ class SSLModel(nn.Module):
     def __init__(self, ssl_pretrained_path):
         super(SSLModel, self).__init__()
         cp_path = ssl_pretrained_path   # Change the pre-trained XLSR model path. 
+        # Pre-check if the model is already in the local directory
+        if not os.path.exists(cp_path):
+            try:
+                print(f"Model {cp_path} not found in the local directory, downloading from S3...")
+                cp_path = prepare_model_from_s3(
+                    dest_path=os.path.dirname(cp_path),
+                    bucket_name=os.getenv("S3_BUCKET_NAME"),
+                    model_name=os.path.basename(cp_path)
+                )
+                print(f"Model {cp_path} downloaded from S3 to {os.path.dirname(cp_path)}")
+            except Exception as e:
+                print(f"Error downloading model {cp_path} from S3: {e}")
+                raise e
         model, cfg, task = fairseq.checkpoint_utils.load_model_ensemble_and_task([cp_path])
         self.model = model[0]
         #self.out_dim = 1024
