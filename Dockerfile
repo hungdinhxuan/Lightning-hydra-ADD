@@ -56,6 +56,7 @@ ARG PYTHON_VERSION=3.9.21
 COPY --link --from=ghcr.io/astral-sh/uv:0.7.14 /uv /usr/local/bin/uv
 RUN apt-get update --quiet && \
     apt-get install --quiet --no-install-recommends -y \
+        git ca-certificates \
         libgl1 libglib2.0-0 libusb-1.0-0-dev libsndfile1 ffmpeg && \
     uv python install $PYTHON_VERSION && \
     rm -rf /var/lib/apt/lists/* /root/.cache/uv/* /root/.cache/pip/*
