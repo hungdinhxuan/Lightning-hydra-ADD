@@ -22,7 +22,11 @@ def prepare_model_from_s3(
     dest_name = os.path.basename(model_name)
     print(f"Copying {model_name} to {dest_name}")
     dest = os.path.join(dest_path, dest_name)
-    s3.download_file(bucket_name, model_name, dest)
-    print(f"{dest_name} model copied to {dest}")
-
-    return os.path.join(dest_path, dest_name)
+    # Check if dest already exists
+    if os.path.exists(dest):
+        print(f"{dest_name} model already exists in {dest}")
+        return dest
+    else:
+        s3.download_file(bucket_name, model_name, dest)
+        print(f"{dest_name} model copied to {dest}")
+        return dest

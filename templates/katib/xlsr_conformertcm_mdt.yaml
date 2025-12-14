@@ -6,14 +6,19 @@ metadata:
   name: xlsrconformertcmmdt
 spec:
   objective:
-    type: minimize
-    goal: 0.001
-    objectiveMetricName: loss
+    type: maximize
+    goal: 0.95
+    objectiveMetricName: val/acc
   algorithm:
     algorithmName: random
   parallelTrialCount: 2
   maxTrialCount: 2
   maxFailedTrialCount: 2
+  metricsCollectorSpec:
+    source:
+      filter:
+        metricsFormat:
+          - "val/acc: ([0-9\\.]+)"
   parameters:
     - name: lr
       parameterType: double
