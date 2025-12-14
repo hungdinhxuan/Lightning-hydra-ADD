@@ -69,12 +69,13 @@ class SSLModel(nn.Module):
         if not os.path.exists(cp_path):
             try:
                 print(f"Model {cp_path} not found in the local directory, downloading from S3...")
+                dest_path = "/project"
                 cp_path = prepare_model_from_s3(
-                    dest_path=os.path.dirname(cp_path),
+                    dest_path=dest_path,
                     bucket_name=os.getenv("S3_BUCKET_NAME"),
                     model_name=os.path.basename(cp_path)
                 )
-                print(f"Model {cp_path} downloaded from S3 to {os.path.dirname(cp_path)}")
+                print(f"Model {cp_path} downloaded from S3 to {dest_path}")
             except Exception as e:
                 print(f"Error downloading model {cp_path} from S3: {e}")
                 raise e
