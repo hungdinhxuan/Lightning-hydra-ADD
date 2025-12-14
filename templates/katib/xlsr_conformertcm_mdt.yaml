@@ -1,0 +1,78 @@
+---
+apiVersion: kubeflow.org/v1beta1
+kind: Experiment
+metadata:
+  namespace: superadmin
+  name: xlsrconformertcmmdt
+spec:
+  objective:
+    type: minimize
+    goal: 0.001
+    objectiveMetricName: loss
+  algorithm:
+    algorithmName: random
+  parallelTrialCount: 2
+  maxTrialCount: 2
+  maxFailedTrialCount: 2
+  parameters:
+    - name: lr
+      parameterType: double
+      feasibleSpace:
+        min: "0.000001"
+        max: "0.0001"
+  trialTemplate:
+    primaryContainerName: lightning-hydra-xlsr-conformertcm-mdt-training-container
+    retain: true
+    trialParameters:
+      - name: learningRate
+        description: Learning rate for the training model
+        reference: lr
+    trialSpec:
+      apiVersion: batch/v1
+      kind: Job
+      spec:
+        template:
+          spec:
+            containers:
+              - name: lightning-hydra-xlsr-conformertcm-mdt-training-container
+                image: ghcr.io/cnsl-aisrc/lightning-hydra-add:latest
+                command:
+                  - "python"
+                  - "src/train.py"
+                  - "experiment=xlsr_conformertcm_mdt"
+                  - "++model.optimizer.lr=${trialParameters.learningRate}"
+                resources:
+                  limits:
+                    memory: "16Gi"
+                    cpu: "4"
+                    "nvidia.com/gpu": "1"
+                env:
+                  - name: GIT_REPO_URL
+                    value: "https://github.com/CNSL-AISRC/DVC_ADD_Train"
+                  - name: GIT_BRANCH
+                    value: "main"
+                  - name: DVC_DATA_PATH
+                    value: "data/"
+                  - name: S3_ENDPOINT_URL
+                    value: "http://192.168.0.11:31100"
+                  - name: S3_ACCESS_KEY_ID
+                    value: "hungdx"
+                  - name: S3_SECRET_ACCESS_KEY
+                    value: "cnsl1807"
+                  - name: GIT_TOKEN
+                    value: "ghp_0123456789012345678901234567890123456789"
+                  - name: CACHE_DIR
+                    value: "/mnt/.cache"
+                  - name: AUG_PATH
+                    value: "/tmp/aug"
+                  - name: NOISE_PATH
+                    value: "/tmp/noise"
+                  - name: RIR_PATH
+                    value: "/tmp/rirs"
+                  - name: OUTPUT_DIR
+                    value: "/mnt/add-logs"
+                  - name: XLSR_PRETRAINED_MODEL_PATH
+                    value: "/mnt/xlsr2_300m.pt"
+            restartPolicy: Never
+            imagePullSecrets:
+              - name: ghcr-secret

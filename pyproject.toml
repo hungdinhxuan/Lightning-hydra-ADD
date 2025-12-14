@@ -52,4 +52,5 @@ dependencies = [
     "tokenizers==0.21.1",
     "triton==3.4.0",
     "espnet>=202506",
+    "boto3==1.35.36",
 ]
