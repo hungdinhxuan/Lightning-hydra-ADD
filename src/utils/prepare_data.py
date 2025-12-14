@@ -32,24 +32,17 @@ def prepare_data(
     
     # Prepare authenticated Git URL for private repos
     auth_git_url = git_repo_url
+
+
+    print(f"No git token provided, using environment variable GIT_TOKEN")
+    git_token = os.getenv('GIT_TOKEN')
     if git_token:
-        # Inject token into URL for private repo access
-        # Convert https://github.com/user/repo.git to https://token@github.com/user/repo.git
-        if git_repo_url.startswith('https://'):
-            auth_git_url = git_repo_url.replace('https://', f'https://{git_token}@')
-            print(f"Using authenticated access for private repository")
-        else:
-            print(f"Warning: git_token provided but URL is not HTTPS. Token will be ignored.")
+        print(f"Git token: {git_token}")
+        auth_git_url = git_repo_url.replace('https://', f'https://{git_token}@')
+        print(f"Using authenticated access for private repository")
     else:
-        print(f"No git token provided, using environment variable GIT_TOKEN")
-        git_token = os.getenv('GIT_TOKEN')
-        if git_token:
-            print(f"Git token: {git_token}")
-            auth_git_url = git_repo_url.replace('https://', f'https://{git_token}@')
-            print(f"Using authenticated access for private repository")
-        else:
-            print(f"No git token found in environment variables")
-            raise ValueError("No git token found in environment variables")
+        print(f"No git token found in environment variables")
+        raise ValueError("No git token found in environment variables")
     
     print(f"Cloning repository: {git_repo_url.split('@')[-1]}")  # Hide token in logs
     print(f"Target branch: {git_branch}")
