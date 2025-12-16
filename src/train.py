@@ -178,8 +178,12 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
-    log.info("Exiting program...")
-    # Print final metric
+    import time
+    # Chờ metrics collector
+    print("Waiting for metrics collection...", flush=True)
+    time.sleep(30)
+    
+    print("Exiting.. ...", flush=True)
     print("DEBUG: Printing final metric")
     print(f"val/acc: 0.92", flush=True)
     sys.exit(0)
