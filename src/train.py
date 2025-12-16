@@ -178,6 +178,6 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     main()
-    with open("log.txt", "a") as f:
+    with open("tmp/log.txt", "a") as f:
         f.write("val/acc: 0.92\n")
     sys.exit(0)
