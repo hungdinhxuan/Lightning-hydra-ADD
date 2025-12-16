@@ -1,0 +1,6 @@
+# csv logger built in lightning
+
+json:
+  _target_: src.logger.json.JSONLogger
+  save_dir: "${paths.output_dir}"
+  name: "json/"
