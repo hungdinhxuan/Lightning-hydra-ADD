@@ -1,6 +1,19 @@
-# csv logger built in lightning
+# Katib-compatible JSON logger
+# Outputs line-separated JSON with timestamps for Katib metrics collection
+# Format: {"epoch": 0, "metric": value, "timestamp": "2021-12-02T14:27:51"}
+# 
+# log_by options:
+#   - "epoch": Log with epoch number (default, recommended for Katib)
+#   - "step": Log with step number
+#
+# log_on options:
+#   - "val": Log only validation metrics (default, recommended for Katib - one entry per epoch)
+#   - "train": Log only training metrics
+#   - "all": Log both training and validation metrics
 
 json:
   _target_: src.logger.json.JSONLogger
   save_dir: "${paths.output_dir}"
-  name: "json/"
+  name: "json"
+  log_by: "epoch"  # Options: "epoch" or "step"
+  log_on: "all"    # Options: "val", "train", or "all"
