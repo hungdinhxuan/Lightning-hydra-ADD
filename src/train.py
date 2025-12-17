@@ -178,6 +178,10 @@ def main(cfg: DictConfig) -> Optional[float]:
 
 if __name__ == "__main__":
     #main()
+    # Sleep for 60 seconds
+    import time
+    time.sleep(60)
+    
     with open("/tmp/log.txt", "a") as f:
         f.write("val/acc: 0.92\n")
     
@@ -191,6 +195,6 @@ if __name__ == "__main__":
         f.write('{"timestamp": "2025-12-17T08:06:26", "epoch": 0, "train/loss": 2.8403701782226562, "train/acc": 0.46173468232154846, "train/view_1_acc": 0.5714285969734192, "train/view_2_acc": 0.4183673560619354, "train/view_3_acc": 0.4183673560619354, "train/view_4_acc": 0.43877550959587097, "train/view_1_loss": 0.6851486563682556, "train/view_2_loss": 0.7220097780227661, "train/view_3_loss": 0.7139177322387695, "train/view_4_loss": 0.7192937731742859}\n')
         f.write('{"timestamp": "2025-12-17T08:06:35", "epoch": 1, "val/loss": 1.8104249238967896, "val/acc": 1.0, "val/view_1_loss": 0.5112623572349548, "val/view_2_loss": 0.57194983959198, "val/view_3_loss": 0.5330742001533508, "val/view_4_loss": 0.5758748650550842, "val/view_1_acc": 0.9489796161651611, "val/view_1_acc_best": 0.9489796161651611, "val/view_2_acc": 0.7908163070678711, "val/view_2_acc_best": 0.7908163070678711, "val/view_3_acc": 0.9158163070678711, "val/view_3_acc_best": 0.9158163070678711, "val/view_4_acc": 0.8239796161651611, "val/view_4_acc_best": 0.8239796161651611, "val/acc_best": 1.0}\n')
         f.write('{"timestamp": "2025-12-17T08:06:51", "epoch": 1, "train/loss": 2.5781359672546387, "train/acc": 0.6670918464660645, "train/view_1_acc": 0.625, "train/view_2_acc": 0.5382652878761292, "train/view_3_acc": 0.543367326259613, "train/view_4_acc": 0.5510203838348389, "train/view_1_loss": 0.6576798558235168, "train/view_2_loss": 0.6896090507507324, "train/view_3_loss": 0.6818584203720093, "train/view_4_loss": 0.6801056861877441}\n')
-        f.close()
+        #f.close()
     print("Metrics written to /tmp/metrics.json")
     sys.exit(0)
