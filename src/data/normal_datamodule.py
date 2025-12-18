@@ -239,6 +239,19 @@ class NormalDataModule(LightningDataModule):
 
         # load and split datasets only if not loaded already
         if not self.data_train and not self.data_val and not self.data_test:
+            # Load dataset from DVC remote if is not present in the local directory
+            # This one is designed to be used in katib experiments
+            if not os.path.exists(self.data_dir):
+                print(f"Data directory {self.data_dir} not found in the local directory, downloading from DVC remote...")
+                from src.utils.prepare_data import prepare_data
+                self.data_dir = prepare_data(
+                    git_repo_url=os.getenv("GIT_REPO_URL"),
+                    dvc_data_path=os.getenv("DVC_DATA_PATH"),
+                    pvc_path="/project/data",
+                    git_branch=os.getenv("GIT_BRANCH"),
+                )
+                self.protocol_path = os.path.join(self.data_dir, 'protocol.txt')
+                print(f"Data directory {self.data_dir} downloaded from DVC remote")
             # define train dataloader
             d_label_trn, file_train = self.genList(
                 is_train=True, is_eval=False, is_dev=False)

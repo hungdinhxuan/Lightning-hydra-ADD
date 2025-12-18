@@ -2,56 +2,136 @@
 apiVersion: kubeflow.org/v1beta1
 kind: Experiment
 metadata:
-  namespace: kubeflow
-  name: random
+  namespace: superadmin
+  name: xlsr-conformertcm-json-file-collector
 spec:
   objective:
-    type: minimize
-    goal: 0.001
-    objectiveMetricName: loss
+    type: maximize
+    goal: 0.9
+    objectiveMetricName: val_accuracy
   algorithm:
     algorithmName: random
-  parallelTrialCount: 3
-  maxTrialCount: 12
-  maxFailedTrialCount: 3
+  parallelTrialCount: 2
+  maxTrialCount: 2
+  maxFailedTrialCount: 2
+  metricsCollectorSpec:
+    collector:
+      kind: File
+    source:
+      fileSystemPath:
+        path: "/tmp/metrics.json"
+        kind: File
+        format: JSON
+    waitAllProcesses: false
   parameters:
     - name: lr
       parameterType: double
       feasibleSpace:
-        min: "0.01"
-        max: "0.05"
-    - name: momentum
-      parameterType: double
-      feasibleSpace:
-        min: "0.5"
-        max: "0.9"
+        min: "0.000001"
+        max: "0.0001"
   trialTemplate:
-    primaryContainerName: training-container
+    primaryContainerName: lightning-hydra-xlsr-conformertcm-training-container
+    successCondition: status.conditions.#(type=="Complete")#|#(status=="True")#
+    failureCondition: status.conditions.#(type=="Failed")#|#(status=="True")#
+    retain: true
     trialParameters:
       - name: learningRate
         description: Learning rate for the training model
         reference: lr
-      - name: momentum
-        description: Momentum for the training model
-        reference: momentum
     trialSpec:
       apiVersion: batch/v1
       kind: Job
       spec:
         template:
+          metadata:
+            annotations:
+              "sidecar.istio.io/inject": "false"
           spec:
             containers:
-              - name: training-container
-                image: ghcr.io/kubeflow/katib/pytorch-mnist-cpu:latest
+              - name: lightning-hydra-xlsr-conformertcm-training-container
+                image: ghcr.io/cnsl-aisrc/lightning-hydra-add:latest
+                workingDir: /project
                 command:
-                  - "python3"
-                  - "/opt/pytorch-mnist/mnist.py"
-                  - "--epochs=1"
-                  - "--batch-size=16"
-                  - "--lr=${trialParameters.learningRate}"
-                  - "--momentum=${trialParameters.momentum}"
+                  - "python"
+                  - "/project/src/train.py"
+                  - "experiment=xlsr_conformertcm_normal"
+                  - "++trainer.max_epochs=1"
+                  - "logger=json"
+                  - "+model.score_save_path=evaluation_log.txt"
+                  - "++model.optimizer.lr=${trialParameters.learningRate}"
+                  - "++json_logging.enabled=true"
+                  - "++json_logging.log_path=/tmp/metrics.json"
                 resources:
                   limits:
-                    memory: "1Gi"
-                    cpu: "0.5"
+                    memory: "16Gi"
+                    cpu: "2"
+                    "nvidia.com/gpu": "1"
+                    ephemeral-storage: "50Gi"
+                  requests:
+                    memory: "8Gi"
+                    cpu: "1"
+                    "nvidia.com/gpu": "1"
+                    ephemeral-storage: "30Gi"
+                volumeMounts:
+                  - name: dshm
+                    mountPath: /dev/shm
+                env:
+                  - name: GIT_REPO_URL
+                    value: "https://github.com/CNSL-AISRC/DVC_ADD_Train"
+                  - name: GIT_BRANCH
+                    value: "dev"
+                  - name: DVC_DATA_PATH
+                    value: "compressed"
+                  - name: S3_ENDPOINT_URL
+                    value: "http://mlflow-minio.kubeflow:9000"
+                  - name: S3_BUCKET_NAME
+                    value: "add-evaluation"
+                  - name: S3_ACCESS_KEY_ID
+                    valueFrom:
+                      secretKeyRef:
+                        name: training-secrets
+                        key: S3_ACCESS_KEY_ID
+
+                  - name: S3_SECRET_ACCESS_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: training-secrets
+                        key: S3_SECRET_ACCESS_KEY
+
+                  - name: AWS_ACCESS_KEY_ID
+                    valueFrom:
+                      secretKeyRef:
+                        name: training-secrets
+                        key: AWS_ACCESS_KEY_ID
+
+                  - name: AWS_SECRET_ACCESS_KEY
+                    valueFrom:
+                      secretKeyRef:
+                        name: training-secrets
+                        key: AWS_SECRET_ACCESS_KEY
+
+                  - name: GIT_TOKEN
+                    valueFrom:
+                      secretKeyRef:
+                        name: training-secrets
+                        key: GIT_TOKEN
+                  - name: CACHE_DIR
+                    value: "/mnt/.cache"
+                  - name: AUG_PATH
+                    value: "/project/aug"
+                  - name: NOISE_PATH
+                    value: "/project/noise"
+                  - name: RIR_PATH
+                    value: "/project/rirs"
+                  - name: OUTPUT_DIR
+                    value: "/project/add-logs"
+                  - name: XLSR_PRETRAINED_MODEL_PATH
+                    value: "s3://add-evaluation/xlsr2_300m.pt"
             restartPolicy: Never
+            imagePullSecrets:
+              - name: ghcr-secret
+            volumes:
+              - name: dshm
+                emptyDir:
+                  medium: Memory
+                  sizeLimit: 2Gi
