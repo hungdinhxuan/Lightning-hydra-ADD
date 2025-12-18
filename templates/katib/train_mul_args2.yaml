@@ -3,20 +3,20 @@ apiVersion: kubeflow.org/v1beta1
 kind: Experiment
 metadata:
   namespace: superadmin
-  name: lightning-hydra-add-train-18-12-2025
+  name: lha-mul-args-181225
 spec:
   objective:
     type: maximize
     goal: 0.9
-    objectiveMetricName: val_accuracy
+    objectiveMetricName: train_accuracy
     additionalMetricNames:
       - val_loss
       - train_loss
-      - train_accuracy
+      - val_accuracy
   algorithm:
-    algorithmName: grid
+    algorithmName: random
   parallelTrialCount: 2
-  maxTrialCount: 2
+  maxTrialCount: 20
   maxFailedTrialCount: 2
   metricsCollectorSpec:
     collector:
@@ -28,14 +28,45 @@ spec:
         format: JSON
     waitAllProcesses: false
   parameters:
+    - name: n_encoders
+      parameterType: int
+      feasibleSpace:
+        min: '2'
+        max: '16'
+        step: '2'
+    - name: type
+      parameterType: categorical
+      feasibleSpace:
+        list:
+          - conv
+          - conv_res2net
+          - conv_seblock
+          - conv_res2net_seblock
+    - name: pooling
+      parameterType: categorical
+      feasibleSpace:
+        list:
+          - max
+          - mean
+          - first
     - name: model_type
       parameterType: categorical
       feasibleSpace:
         list:
           - "xlsr_conformertcm_mdt"
           - "xlsr_conformertcm_normal"
+    - name: lr
+      parameterType: double
+      feasibleSpace:
+        min: "0.000001"
+        max: "0.0001"
+    - name: weight_decay
+      parameterType: double
+      feasibleSpace:
+        min: "0.00001"
+        max: "0.001"
   trialTemplate:
-    primaryContainerName: lightning-hydra-grid-training-container
+    primaryContainerName: lightning-hydra-mul-args-training-container
     successCondition: status.conditions.#(type=="Complete")#|#(status=="True")#
     failureCondition: status.conditions.#(type=="Failed")#|#(status=="True")#
     retain: false
@@ -43,6 +74,21 @@ spec:
       - name: model_type
         description: Model type for the training model
         reference: model_type
+      - name: n_encoders
+        description: Number of encoders for Conformer Blocks
+        reference: n_encoders
+      - name: type
+        description: Type for Conformer Blocks
+        reference: type
+      - name: pooling
+        description: Pooling for Conformer Blocks
+        reference: pooling
+      - name: lr
+        description: Learning rate for the training model
+        reference: lr
+      - name: weight_decay
+        description: Weight decay for the training model
+        reference: weight_decay
     trialSpec:
       apiVersion: batch/v1
       kind: Job
@@ -53,18 +99,23 @@ spec:
               "sidecar.istio.io/inject": "false"
           spec:
             containers:
-              - name: lightning-hydra-grid-training-container
+              - name: lightning-hydra-mul-args-training-container
                 image: ghcr.io/cnsl-aisrc/lightning-hydra-add:latest
                 workingDir: /project
                 command:
                   - "python"
                   - "/project/src/train.py"
                   - "experiment=${trialParameters.model_type}"
-                  - "++trainer.max_epochs=1"
+                  - "++trainer.max_epochs=3"
                   - "logger=json"
                   - "+model.score_save_path=evaluation_log.txt"
                   - "++json_logging.enabled=true"
                   - "++json_logging.log_path=/tmp/metrics.json"
+                  - "++model.args.conformer.n_encoders=${trialParameters.n_encoders}"
+                  - "++model.args.conformer.type=${trialParameters.type}"
+                  - "++model.args.conformer.pooling=${trialParameters.pooling}"
+                  - "++model.args.optimizer.lr=${trialParameters.lr}"
+                  - "++model.args.optimizer.weight_decay=${trialParameters.weight_decay}"
                 resources:
                   limits:
                     memory: "16Gi"
