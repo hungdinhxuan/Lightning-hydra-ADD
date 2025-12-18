@@ -55,4 +55,5 @@ dependencies = [
     "boto3==1.35.36",
     "dvc[s3]==3.55.2",
     "gitpython==3.1.43",
+    "cloudml-hypertune>=0.1.0.dev6",
 ]

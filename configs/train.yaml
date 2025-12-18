@@ -52,3 +52,9 @@ seed: null
 model_averaging: null
 
 push_model_to_mlflow: False
+
+json_logging:
+  enabled: false  # Set to true to enable JSON logging via hypertune
+  log_path: null  # Optional: Set a custom path for JSON metrics file (e.g., "/tmp/metrics.json")
+                  # If null, hypertune will use default behavior
+                  # If set, the CLOUD_ML_HP_METRIC_FILE environment variable will be configured

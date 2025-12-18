@@ -8,6 +8,7 @@ from lightning import Callback, LightningDataModule, LightningModule, Trainer
 from lightning.pytorch.loggers import Logger
 from omegaconf import DictConfig
 import sys
+import hypertune
 
 rootutils.setup_root(__file__, indicator=".project-root", pythonpath=True)
 # ------------------------------------------------------------------------------------ #
@@ -49,6 +50,112 @@ def torch_wrapper(*args, **kwargs):
 
 torch.load = torch_wrapper
 
+
+class HypertuneCallback(Callback):
+    """Lightning callback for reporting metrics using hypertune for JSON logging.
+    
+    This callback integrates with cloudml-hypertune to report metrics in JSON format,
+    compatible with Kubeflow Katib and other hyperparameter tuning frameworks.
+    """
+    
+    def __init__(self, log_path: Optional[str] = None, enabled: bool = True):
+        """Initialize the HypertuneCallback.
+        
+        Args:
+            log_path: Optional path to save JSON metrics. If provided, sets CLOUD_ML_HP_METRIC_FILE.
+            enabled: Whether to enable hypertune reporting. Defaults to True.
+        """
+        super().__init__()
+        self.enabled = enabled
+        if not self.enabled:
+            return
+            
+        # Set up hypertune
+        if log_path:
+            os.environ["CLOUD_ML_HP_METRIC_FILE"] = log_path
+            
+        self.hpt = hypertune.HyperTune()
+        log.info(f"HypertuneCallback initialized with log_path: {log_path}")
+    
+    def on_train_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        """Called when the train epoch ends."""
+        if not self.enabled:
+            return
+            
+        metrics = trainer.callback_metrics
+        epoch = trainer.current_epoch
+        
+        # Report training metrics
+        if "train/loss" in metrics:
+            self.hpt.report_hyperparameter_tuning_metric(
+                hyperparameter_metric_tag="train_loss",
+                metric_value=float(metrics["train/loss"]),
+                global_step=epoch
+            )
+        
+        if "train/acc" in metrics:
+            self.hpt.report_hyperparameter_tuning_metric(
+                hyperparameter_metric_tag="train_accuracy",
+                metric_value=float(metrics["train/acc"]),
+                global_step=epoch
+            )
+    
+    def on_validation_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        """Called when the validation epoch ends."""
+        if not self.enabled:
+            return
+            
+        metrics = trainer.callback_metrics
+        epoch = trainer.current_epoch
+        
+        # Report validation metrics
+        if "val/loss" in metrics:
+            self.hpt.report_hyperparameter_tuning_metric(
+                hyperparameter_metric_tag="val_loss",
+                metric_value=float(metrics["val/loss"]),
+                global_step=epoch
+            )
+        
+        if "val/acc" in metrics:
+            self.hpt.report_hyperparameter_tuning_metric(
+                hyperparameter_metric_tag="val_accuracy",
+                metric_value=float(metrics["val/acc"]),
+                global_step=epoch
+            )
+        
+        # Report view-specific metrics if available (for MDT models)
+        for key in metrics.keys():
+            if key.startswith("val/view_") and "_acc" in key:
+                view_name = key.replace("val/", "").replace("/", "_")
+                self.hpt.report_hyperparameter_tuning_metric(
+                    hyperparameter_metric_tag=view_name,
+                    metric_value=float(metrics[key]),
+                    global_step=epoch
+                )
+    
+    def on_test_epoch_end(self, trainer: Trainer, pl_module: LightningModule) -> None:
+        """Called when the test epoch ends."""
+        if not self.enabled:
+            return
+            
+        metrics = trainer.callback_metrics
+        
+        # Report test metrics (no global_step for final test)
+        if "test/loss" in metrics:
+            self.hpt.report_hyperparameter_tuning_metric(
+                hyperparameter_metric_tag="test_loss",
+                metric_value=float(metrics["test/loss"]),
+                global_step=0
+            )
+        
+        if "test/acc" in metrics:
+            self.hpt.report_hyperparameter_tuning_metric(
+                hyperparameter_metric_tag="test_accuracy",
+                metric_value=float(metrics["test/acc"]),
+                global_step=0
+            )
+
+
 @task_wrapper
 def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
     """Trains the model. Can additionally evaluate on a testset, using best weights obtained during
@@ -72,6 +179,13 @@ def train(cfg: DictConfig) -> Tuple[Dict[str, Any], Dict[str, Any]]:
 
     log.info("Instantiating callbacks...")
     callbacks: List[Callback] = instantiate_callbacks(cfg.get("callbacks"))
+    
+    # Add HypertuneCallback for JSON logging if enabled
+    if cfg.get("json_logging", {}).get("enabled", False):
+        log_path = cfg.get("json_logging", {}).get("log_path", None)
+        hypertune_callback = HypertuneCallback(log_path=log_path, enabled=True)
+        callbacks.append(hypertune_callback)
+        log.info(f"JSON logging enabled with log_path: {log_path}")
 
     log.info("Instantiating loggers...")
     logger: List[Logger] = instantiate_loggers(cfg.get("logger"))
@@ -180,12 +294,4 @@ if __name__ == "__main__":
     main()
     with open("/tmp/log.txt", "a") as f:
         f.write("val/acc: 0.92\n")
-    # Write dummy metrics to /tmp/metrics.json
-    with open("/tmp/metrics.json", "w") as f:
-        f.write('{"timestamp": "2025-12-17T08:06:09", "epoch": 0, "val/loss": 2.573897123336792, "val/acc": 0.7397959232330322, "val/view_1_loss": 0.5998261570930481, "val/view_2_loss": 0.6730245351791382, "val/view_3_loss": 0.6264890432357788, "val/view_4_loss": 0.6745575666427612, "val/view_1_acc": 0.8979591727256775, "val/view_1_acc_best": 0.8979591727256775, "val/view_2_acc": 0.581632673740387, "val/view_2_acc_best": 0.581632673740387, "val/view_3_acc": 0.831632673740387, "val/view_3_acc_best": 0.831632673740387, "val/view_4_acc": 0.6479591727256775, "val/view_4_acc_best": 0.6479591727256775, "val/acc_best": 0.739795982837677}\n')
-        f.write('{"timestamp": "2025-12-17T08:06:26", "epoch": 0, "train/loss": 2.8403701782226562, "train/acc": 0.46173468232154846, "train/view_1_acc": 0.5714285969734192, "train/view_2_acc": 0.4183673560619354, "train/view_3_acc": 0.4183673560619354, "train/view_4_acc": 0.43877550959587097, "train/view_1_loss": 0.6851486563682556, "train/view_2_loss": 0.7220097780227661, "train/view_3_loss": 0.7139177322387695, "train/view_4_loss": 0.7192937731742859}\n')
-        f.write('{"timestamp": "2025-12-17T08:06:35", "epoch": 1, "val/loss": 1.8104249238967896, "val/acc": 1.0, "val/view_1_loss": 0.5112623572349548, "val/view_2_loss": 0.57194983959198, "val/view_3_loss": 0.5330742001533508, "val/view_4_loss": 0.5758748650550842, "val/view_1_acc": 0.9489796161651611, "val/view_1_acc_best": 0.9489796161651611, "val/view_2_acc": 0.7908163070678711, "val/view_2_acc_best": 0.7908163070678711, "val/view_3_acc": 0.9158163070678711, "val/view_3_acc_best": 0.9158163070678711, "val/view_4_acc": 0.8239796161651611, "val/view_4_acc_best": 0.8239796161651611, "val/acc_best": 1.0}\n')
-        f.write('{"timestamp": "2025-12-17T08:06:51", "epoch": 1, "train/loss": 2.5781359672546387, "train/acc": 0.6670918464660645, "train/view_1_acc": 0.625, "train/view_2_acc": 0.5382652878761292, "train/view_3_acc": 0.543367326259613, "train/view_4_acc": 0.5510203838348389, "train/view_1_loss": 0.6576798558235168, "train/view_2_loss": 0.6896090507507324, "train/view_3_loss": 0.6818584203720093, "train/view_4_loss": 0.6801056861877441}\n')
-        #f.close()
-    print("Metrics written to /tmp/metrics.json")
     sys.exit(0)
