@@ -1,0 +1,21 @@
+_target_: src.models.aasist_normal_module.AASISTNormalLitModule
+
+optimizer:
+  _target_: torch.optim.Adam
+  _partial_: true
+  lr: 0.000001
+  weight_decay: 0.0001
+
+scheduler: null
+
+args:
+  first_conv: 128
+  filts: [70, [1, 32], [32, 32], [32, 64], [64, 64]]
+  gat_dims: [64, 32]
+  pool_ratios: [0.5, 0.7, 0.5, 0.5]
+  temperatures: [2.0, 2.0, 100.0, 100.0]
+
+
+cross_entropy_weight: [0.1, 0.9] # weight for cross entropy loss 0.1 for spoof and 0.9 for bonafide
+# compile model for faster training with pytorch 2.0
+compile: false
