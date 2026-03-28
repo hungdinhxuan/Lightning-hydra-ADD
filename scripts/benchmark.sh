@@ -135,7 +135,7 @@ fi
 
 # Set default value for BATCH_SIZE if not provided
 if [ -z "$BATCH_SIZE" ]; then
-    BATCH_SIZE="128"
+    BATCH_SIZE="64"
 fi
 
 # print IS_RANDOM_START
