@@ -257,6 +257,40 @@ class BaseLitModule(LightningModule):
         print(f"Run kwargs: {run_kwargs}", flush=True)
         
         with mlflow.start_run(**run_kwargs) as run:
+            dataset_lineage = {}
+            lineage_json = os.getenv("DATASET_LINEAGE_JSON")
+            if lineage_json:
+                try:
+                    dataset_lineage = json.loads(lineage_json)
+                    mlflow.log_dict(dataset_lineage, "lineage/dataset_lineage.json")
+                except Exception as exc:
+                    print(f"Warning: could not log DATASET_LINEAGE_JSON: {exc}", flush=True)
+
+            lineage_fields = {
+                "pipeline_name": os.getenv("PIPELINE_NAME"),
+                "pipeline_run_name": os.getenv("PIPELINE_RUN_NAME"),
+                "pipeline_package": os.getenv("PIPELINE_PACKAGE"),
+                "source_git_sha": os.getenv("SOURCE_GIT_SHA"),
+                "train_exp_config_path": os.getenv("TRAIN_EXP_CONFIG_PATH"),
+                "train_dataset_name": os.getenv("TRAIN_DATASET_NAME"),
+                "train_dataset_hash": os.getenv("TRAIN_DATASET_HASH"),
+                "train_dataset_id": os.getenv("TRAIN_DATASET_ID"),
+                "train_dataset_branch": os.getenv("TRAIN_DATASET_BRANCH"),
+                "eval_dataset_name": eval_dataset_name,
+                "eval_dataset_hash": os.getenv("EVAL_DATASET_HASH"),
+                "eval_dataset_id": os.getenv("EVAL_DATASET_ID"),
+            }
+            lineage_fields = {key: value for key, value in lineage_fields.items() if value}
+            if lineage_fields:
+                mlflow.set_tags(lineage_fields)
+                mlflow.log_params(
+                    {
+                        key: value
+                        for key, value in lineage_fields.items()
+                        if len(str(value)) <= 250
+                    }
+                )
+
             example_input = torch.randn(1, 64600) # 1 sample, 64600 features ~ 4 seconds of audio
             signature = infer_signature(example_input, self.net(example_input))
             print(f"Run ID: {run.info.run_id}", flush=True)
