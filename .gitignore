@@ -170,3 +170,4 @@ notebooks/**/*.csv
 
 .cache/
 pretrained/
+tmp/
