@@ -146,6 +146,77 @@ If they differ:
 - with `--reload-on-change`: worker reloads model, then runs job
 - without `--reload-on-change`: job fails with runtime mismatch
 
+## Benchmark Result and Bottleneck
+
+Measured on 2026-05-26 with RTX 5090 GPU 0, config `xlsr_conformertcm_normal`, model `/NAS1_pretrained_lab/May_21_2026_TCM_MDT.pt`, `bf16-mixed`, batch size `128`.
+
+The local `tmp/RUN.md` command path was benchmarked against the persistent service on a two-dataset mini benchmark. Each dataset used 9 real German eval wavs from `data/May_2026_benchmark/german_dataset_May262026`.
+
+| Path | Datasets | Model loads | Wall time | Notes |
+| --- | ---: | ---: | ---: | --- |
+| Legacy `scripts/benchmark_py/benchmark.py` | 2 x 9 rows | 2 | 50.20s | Spawns `src/train.py` once per dataset |
+| Persistent service | 2 x 9 rows | 1 | 29.61s | Loads model once, reuses resident model |
+
+Speedup: `50.20 / 29.61 = 1.70x` for this small two-dataset cold inference case. On larger benchmark folders with many subdirectories, expected savings scale with avoided model/checkpoint loads.
+
+Main bottleneck found:
+
+- Legacy inference launches a new Python process for every dataset.
+- Each process composes Hydra, imports fairseq/speechbrain, builds the 321M-param model, and loads the 1.28GB checkpoint again.
+- In mini benchmark logs, each legacy dataset took about 24s despite only one 9-row inference batch.
+
+Fix implemented:
+
+- Added `src/benchmark_service/` resident worker runtime used by `service_worker.py`.
+- Worker composes Hydra once per runtime signature and keeps one `LightningModule` in memory.
+- Per dataset, worker creates only fresh datamodule/trainer state and updates `score_save_path`, `data_dir`, `protocol_path`, batch size, trim length, and random-start.
+- Worker lazy-loads the model only when inference is needed; if all score files are already complete, it evaluates/merges without loading the checkpoint.
+- Persistent trainer disables checkpointing, model summary, progress bar, and sanity checks for inference-only jobs.
+- Score writer now joins and closes the background writer at test epoch end, preventing zero-byte temp score files on small/fast inference resumes.
+- Evaluation now uses the JSON-capable `scripts/benchmark_py/score_file_to_eer.py`; pooled EER JSON output is supported by `scripts/calculate_pooled_eer.py`.
+
+Reproduce mini benchmark:
+
+```bash
+rm -rf /tmp/bench_compare /tmp/bench_compare_results /tmp/bench_compare_queue
+mkdir -p /tmp/bench_compare/mini_a /tmp/bench_compare/mini_b
+for d in mini_a mini_b; do
+  ln -s /data/add_eval_data/german_dataset_May262026/tts-output /tmp/bench_compare/$d/tts-output
+  tail -9 data/May_2026_benchmark/german_dataset_May262026/protocol.txt > /tmp/bench_compare/$d/protocol.txt
+done
+
+/usr/bin/time -f 'legacy_elapsed=%e exit=%x' \
+  sh -c 'OMP_NUM_THREADS=8 uv run ./scripts/benchmark_py/benchmark.py \
+    -g 0 \
+    -c xlsr_conformertcm_normal \
+    -b /tmp/bench_compare \
+    -m /NAS1_pretrained_lab/May_21_2026_TCM_MDT.pt \
+    -r /tmp/bench_compare_results \
+    -n legacy_two_mini \
+    -l false \
+    -z 128 \
+    --missing-protocol-label skip \
+    ++trainer.precision=bf16-mixed'
+
+python scripts/benchmark_py/service_submit.py \
+  --queue-dir /tmp/bench_compare_queue \
+  -g 0 \
+  -c xlsr_conformertcm_normal \
+  -b /tmp/bench_compare \
+  -m /NAS1_pretrained_lab/May_21_2026_TCM_MDT.pt \
+  -r /tmp/bench_compare_results \
+  -n service_two_mini \
+  -l false \
+  -z 128 \
+  --precision bf16-mixed \
+  --missing-protocol-label skip
+
+/usr/bin/time -f 'service_elapsed=%e exit=%x' \
+  python scripts/benchmark_py/service_worker.py \
+    --once \
+    --queue-dir /tmp/bench_compare_queue
+```
+
 ## One-Shot Mode
 
 Useful for smoke testing queue behavior:

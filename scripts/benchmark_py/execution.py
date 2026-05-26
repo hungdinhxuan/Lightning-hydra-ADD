@@ -221,7 +221,7 @@ def evaluate_results(
         result = subprocess.run(
             [
                 'python',
-                'scripts/score_file_to_eer.py',
+                'scripts/benchmark_py/score_file_to_eer.py',
                 str(score_file),
                 str(protocol_file),
                 '--output-format',

@@ -57,4 +57,5 @@ dependencies = [
     "gitpython==3.1.43",
     "cloudml-hypertune>=0.1.0.dev6",
     "mlflow==2.20",
+    "webdataset>=0.2.100",
 ]

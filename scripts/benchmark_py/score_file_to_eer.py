@@ -4,7 +4,12 @@
 import argparse
 import math
 import os.path
+import sys
 from pathlib import Path
+
+SCRIPT_PARENT = Path(__file__).resolve().parents[1]
+if str(SCRIPT_PARENT) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_PARENT))
 
 from benchmark_py.binary_eval import (
     build_eval_frame,

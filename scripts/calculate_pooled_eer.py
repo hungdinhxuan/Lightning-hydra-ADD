@@ -192,7 +192,7 @@ def create_combined_files(results_folder, normalized_yaml, comment, benchmark_fo
         raise e
 
 
-def calculate_pooled_eer(results_folder, normalized_yaml, comment, benchmark_folders):
+def calculate_pooled_eer(results_folder, normalized_yaml, comment, benchmark_folders, output_format="legacy"):
     """Calculate pooled EER using combined temporary files"""
     
     print("🔄 Creating combined protocol and score files for pooled EER...", file=sys.stderr)
@@ -225,18 +225,23 @@ def calculate_pooled_eer(results_folder, normalized_yaml, comment, benchmark_fol
     print("🔄 Computing pooled EER using existing evaluation script...", file=sys.stderr)
     
     try:
-        # Get the directory of this script to find score_file_to_eer.py
-        script_dir = os.path.dirname(os.path.abspath(__file__))
-        score_script = os.path.join(script_dir, 'score_file_to_eer.py')
+        score_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'benchmark_py', 'score_file_to_eer.py')
+        score_cmd = ['python', score_script, combined_scores_path, combined_protocol_path]
+        if output_format == "json":
+            score_cmd.extend(['--output-format', 'json'])
         
         result = subprocess.run(
-            ['python', score_script, combined_scores_path, combined_protocol_path],
+            score_cmd,
             capture_output=True,
             text=True,
             check=True
         )
         
         pooled_result = result.stdout.strip()
+        if output_format == "json":
+            json.loads(pooled_result)
+            print(pooled_result)
+            return json.loads(pooled_result)
         
         if pooled_result:
             # Parse results
@@ -328,9 +333,19 @@ def main():
     results_folder = sys.argv[1]
     normalized_yaml = sys.argv[2]
     comment = sys.argv[3]
-    benchmark_folders = sys.argv[4:]
+    args = sys.argv[4:]
+    output_format = "legacy"
+    if "--output-format" in args:
+        index = args.index("--output-format")
+        try:
+            output_format = args[index + 1]
+        except IndexError:
+            print("--output-format requires a value", file=sys.stderr)
+            sys.exit(1)
+        del args[index:index + 2]
+    benchmark_folders = args
     
-    result = calculate_pooled_eer(results_folder, normalized_yaml, comment, benchmark_folders)
+    result = calculate_pooled_eer(results_folder, normalized_yaml, comment, benchmark_folders, output_format=output_format)
     
     if result is None:
         sys.exit(1)

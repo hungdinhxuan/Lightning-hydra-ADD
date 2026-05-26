@@ -248,11 +248,25 @@ class BaseLitModule(LightningModule):
                 fh.writelines(self._write_buffer)
             self._write_buffer.clear()
 
+    def _stop_score_writer(self) -> None:
+        if self._score_writer_queue is not None:
+            self._score_writer_queue.put(None)
+            self._score_writer_queue.join()
+            self._score_writer_queue = None
+        if self._score_writer_thread is not None:
+            self._score_writer_thread.join()
+            self._score_writer_thread = None
+        if self._score_writer_error is not None:
+            raise RuntimeError(f"Background score writer failed: {self._score_writer_error}")
+        if self._score_fh is not None:
+            self._score_fh.close()
+            self._score_fh = None
+
     def on_test_epoch_end(self) -> None:
         """Lightning hook that is called when a test epoch ends."""
         # Ensure any remaining buffered data is written
         self._flush_buffer()
-        pass
+        self._stop_score_writer()
 
     def setup(self, stage: str) -> None:
         """Lightning hook that is called at the beginning of fit (train + validate), validate,

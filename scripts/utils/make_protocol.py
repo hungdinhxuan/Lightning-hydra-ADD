@@ -1,9 +1,11 @@
 import argparse
+import math
 import os
+import random
 import sys
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from pathlib import Path
-from typing import Iterable, List, Optional, Set
+from typing import Iterable, List, Optional, Sequence, Set, Union
 
 try:
     from tqdm import tqdm
@@ -174,14 +176,71 @@ def find_audio_files(
     return sorted(unique_files)
 
 
+def parse_csv_values(value: str, field_name: str) -> List[str]:
+    values = [item.strip() for item in value.split(",") if item.strip()]
+    if not values:
+        raise ValueError(f"{field_name} must contain at least one value")
+    return values
+
+
+def parse_ratio_values(value: str) -> List[float]:
+    ratio_values = parse_csv_values(value, "ratio")
+    try:
+        ratios = [float(item) for item in ratio_values]
+    except ValueError as exc:
+        raise ValueError("--ratio must contain comma-separated numbers") from exc
+
+    if any(ratio < 0 for ratio in ratios):
+        raise ValueError("--ratio values must be non-negative")
+    if sum(ratios) <= 0:
+        raise ValueError("--ratio must contain at least one positive value")
+    return ratios
+
+
+def split_counts(total: int, ratios: Sequence[float]) -> List[int]:
+    ratio_sum = sum(ratios)
+    raw_counts = [(ratio / ratio_sum) * total for ratio in ratios]
+    counts = [math.floor(count) for count in raw_counts]
+    remaining = total - sum(counts)
+
+    ranked_remainders = sorted(
+        range(len(ratios)),
+        key=lambda index: (raw_counts[index] - counts[index], -index),
+        reverse=True,
+    )
+    for index in ranked_remainders[:remaining]:
+        counts[index] += 1
+    return counts
+
+
+def assign_subsets(
+    num_items: int,
+    subsets: Sequence[str],
+    ratios: Sequence[float],
+    seed: int = 0,
+) -> List[str]:
+    if len(subsets) != len(ratios):
+        raise ValueError(
+            f"--subset has {len(subsets)} values but --ratio has {len(ratios)} values"
+        )
+
+    counts = split_counts(num_items, ratios)
+    assignments = [subset for subset, count in zip(subsets, counts) for _ in range(count)]
+    rng = random.Random(seed)
+    rng.shuffle(assignments)
+    return assignments
+
+
 def write_protocol(
     root_dir: Path,
     output_path: Path,
-    subset: str = "eval",
+    subset: Union[str, Sequence[str]] = "eval",
+    ratios: Optional[Sequence[float]] = None,
     label: str = "bonafide",
     exts: Iterable[str] = ("wav", "flac", "mp3", "ogg", "m4a"),
     num_workers: int = 1,
     prefix: Optional[str] = None,
+    seed: int = 0,
 ) -> None:
     """
     Create a protocol file where each line has the form:
@@ -189,7 +248,8 @@ def write_protocol(
         <relative_path> <subset> <label>
 
     - relative_path: path to the audio file relative to root_dir (with optional prefix)
-    - subset: e.g. train / dev / eval
+    - subset: e.g. train / dev / eval, or multiple subsets to split across
+    - ratios: optional split ratios aligned with subset values
     - label: e.g. bonafide / spoof (or "auto" to infer from rel_path)
     - prefix: optional prefix to prepend to relative_path (e.g., "M-AILABS" -> "M-AILABS/...")
     """
@@ -202,6 +262,16 @@ def write_protocol(
         print(f"[WARN] No audio files found under {root_dir}", file=sys.stderr)
         return
 
+    subsets = [subset] if isinstance(subset, str) else list(subset)
+    if ratios is None:
+        ratios = [1.0] * len(subsets)
+    subset_assignments = assign_subsets(
+        num_items=len(audio_files),
+        subsets=subsets,
+        ratios=ratios,
+        seed=seed,
+    )
+
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     auto_label = label == "auto"
@@ -212,8 +282,8 @@ def write_protocol(
 
     # Write with progress bar
     with output_path.open("w", encoding="utf-8") as f:
-        for audio_path in tqdm(
-            audio_files,
+        for audio_path, assigned_subset in tqdm(
+            zip(audio_files, subset_assignments),
             desc="Writing protocol",
             unit="files",
             total=len(audio_files),
@@ -304,9 +374,9 @@ def write_protocol(
             # Quote path if it contains spaces for proper parsing
             if " " in rel_path_with_prefix:
                 quoted_path = f'"{rel_path_with_prefix}"'
-                line = f"{quoted_path} {subset} {resolved_label}\n"
+                line = f"{quoted_path} {assigned_subset} {resolved_label}\n"
             else:
-                line = f"{rel_path_with_prefix} {subset} {resolved_label}\n"
+                line = f"{rel_path_with_prefix} {assigned_subset} {resolved_label}\n"
             
             f.write(line)
 
@@ -332,7 +402,7 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
             "  python scripts/make_protocol.py "
             "--root-dir pool/spoofceleb/flac/train "
             "--output pool/spoofceleb/protocol.txt "
-            "--subset train --label bonafide"
+            "--subset train,dev,eval --ratio 0.5,0.3,0.2 --label bonafide"
         )
     )
     parser.add_argument(
@@ -351,8 +421,21 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
         "--subset",
         type=str,
         default="eval",
-        choices=["train", "dev", "eval"],
-        help="Subset name to use in protocol file (default: eval).",
+        help=(
+            "Comma-separated subset names to use in protocol file "
+            "(default: eval). Example: train,dev,eval."
+        ),
+    )
+    parser.add_argument(
+        "--ratio",
+        type=str,
+        default=None,
+        help=(
+            "Comma-separated split ratios aligned with --subset. "
+            "Example: --subset train,dev,eval --ratio 0.5,0.3,0.2. "
+            "Default keeps all files in the selected subset; for "
+            "train,dev,eval behavior use 0,0,1."
+        ),
     )
     parser.add_argument(
         "--label",
@@ -393,8 +476,35 @@ def parse_args(argv: Iterable[str]) -> argparse.Namespace:
             "like 'M-AILABS/subdir/file.wav' instead of 'subdir/file.wav'."
         ),
     )
+    parser.add_argument(
+        "--seed",
+        type=int,
+        default=0,
+        help="Random seed for subset split assignment (default: 0).",
+    )
 
     args = parser.parse_args(list(argv))
+
+    try:
+        args.subset = parse_csv_values(args.subset, "subset")
+        valid_subsets = {"train", "dev", "eval"}
+        invalid_subsets = [item for item in args.subset if item not in valid_subsets]
+        if invalid_subsets:
+            raise ValueError(
+                "--subset values must be one of train, dev, eval; "
+                f"got: {','.join(invalid_subsets)}"
+            )
+        if args.ratio is None:
+            args.ratio = [1.0] * len(args.subset)
+        else:
+            args.ratio = parse_ratio_values(args.ratio)
+        if len(args.subset) != len(args.ratio):
+            raise ValueError(
+                f"--subset has {len(args.subset)} values but --ratio has "
+                f"{len(args.ratio)} values"
+            )
+    except ValueError as exc:
+        parser.error(str(exc))
     
     # Set default num_workers based on CPU count
     if args.num_workers is None:
@@ -411,7 +521,7 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
 
     root_dir: Path = args.root_dir
     output_path: Path = args.output
-    subset: str = args.subset
+    subset: List[str] = args.subset
     label: str = args.label
 
     exts = [ext.strip().lstrip(".") for ext in args.exts.split(",") if ext.strip()]
@@ -424,10 +534,12 @@ def main(argv: Optional[Iterable[str]] = None) -> None:
         root_dir=root_dir,
         output_path=output_path,
         subset=subset,
+        ratios=args.ratio,
         label=label,
         exts=exts,
         num_workers=args.num_workers,
         prefix=args.prefix,
+        seed=args.seed,
     )
 
 

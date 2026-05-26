@@ -32,16 +32,16 @@ args:
   view_padding_configs:
     '1':
       padding_type: repeat
-      random_start: False
+      random_start: True
     '2':
       padding_type: repeat
-      random_start: False
+      random_start: True
     '3':
       padding_type: repeat
-      random_start: False
+      random_start: True
     '4':
       padding_type: repeat
-      random_start: False
+      random_start: True
   
   augmentation_methods:
     ["RawBoost12", "pitch_1", "volume_10", "speed_01", "none"] # "none" is the original data
