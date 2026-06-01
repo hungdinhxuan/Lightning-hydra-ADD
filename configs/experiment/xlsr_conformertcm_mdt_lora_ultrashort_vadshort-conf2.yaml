@@ -1,0 +1,70 @@
+# @package _global_
+# LoRA fine-tune from May_21_2026_TCM_MDT.pt on VAD-short 80k/10k with ultra-short views.
+
+defaults:
+  - override /data: MDT_optimized
+  - override /model: xlsr_conformertcm_MDT_LoRA
+  - override /callbacks: lora
+  - override /trainer: default
+
+tags: ["MDT_optimized", "xlsr_conformertcm_MDT_LoRA", "ultrashort_vadshort", "conf2"]
+
+seed: 1234
+
+model:
+  optimizer:
+    _target_: torch.optim.AdamW
+    _partial_: true
+    lr: 0.00001 # 1e-5
+    weight_decay: 0.0001
+  net: null
+  scheduler:
+    _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+    _partial_: true
+    factor: 0.5
+    patience: 3
+    min_lr: 1e-6
+  cross_entropy_weight: [0.5, 0.5]
+  weighted_views:
+    "8000": 1.0
+    "16000": 1.0
+    "24000": 1.0
+    "32000": 1.0
+  args:
+    adapter:
+      r: 8
+      # In XLSR feature extraction only fc1/fc2 LoRA params receive gradients.
+      # Attention/final_proj LoRA params stay unused and make DDP hang/error.
+      target_modules: ["q_proj", "v_proj", "k_proj", "out_proj", "fc1", "fc2", "final_proj", "LL", "qkv", "proj", "ht_proj"] # All dense layers (, "fc1", "fc2", "final_proj", "LL", "qkv", "proj", "ht_proj")
+      #target_modules: ["q_proj", "v_proj", "k_proj", "out_proj"] 
+      modules_to_save:  [] # conformer qkv
+      lora_dropout: 0.0
+      lora_alpha: 16
+    conformer:
+      emb_size: 144
+      heads: 4
+      kernel_size: 31
+      n_encoders: 4
+      type: "conv"
+      pooling: "first"
+  is_base_model_path_ln: false
+  base_model_path: /NAS1_pretrained_lab/May_21_2026_TCM_MDT.pt
+
+data:
+  batch_size: 32
+  num_workers: 8
+  pin_memory: true
+  data_dir: ${oc.env:NOISE_DATASET_PATH,./data/add_processed_vad_short_eval10k_per_dataset_train80k_dev10k_29May2026}
+
+  args:
+    protocol_path: ${oc.env:NOISE_DATASET_PROTOCOL,${data.data_dir}/subsets/train_dev_90k_wds.protocol.txt}
+    augmentation_methods: ["RawBoostdf", "none"]
+    padding_type: repeat
+    random_start: true
+    is_dev_aug: false
+    view_lengths_samples: [8000, 16000, 24000, 32000]
+    wds_data_dir: ${oc.env:WDS_DATA_DIR,${data.data_dir}/wds_data}
+    wds_shm_dir: ${oc.env:WDS_SHM_DIR,null}
+    wds_shard_shuffle: 100
+    wds_sample_shuffle: 2000
+    wds_auto_epoch_batches: true

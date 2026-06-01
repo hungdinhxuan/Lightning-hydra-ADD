@@ -368,7 +368,7 @@ class NormalDataModule(LightningDataModule):
             with open(self.protocol_path, 'r') as f:
                 l_meta = f.readlines()
             for line in l_meta:
-                utt, subset, label = line.strip().split()
+                utt, subset, label = line.strip().rsplit(maxsplit=2)
                 if subset == 'train':
                     file_list.append(utt)
                     d_meta[utt] = 1 if label == 'bonafide' else 0
@@ -378,7 +378,7 @@ class NormalDataModule(LightningDataModule):
             with open(self.protocol_path, 'r') as f:
                 l_meta = f.readlines()
             for line in l_meta:
-                utt, subset, label = line.strip().split()
+                utt, subset, label = line.strip().rsplit(maxsplit=2)
                 if subset == 'dev':
                     file_list.append(utt)
                     d_meta[utt] = 1 if label == 'bonafide' else 0
@@ -389,7 +389,7 @@ class NormalDataModule(LightningDataModule):
             with open(self.protocol_path, 'r') as f:
                 l_meta = f.readlines()
             for line in l_meta:
-                utt, subset, label = line.strip().split()
+                utt, subset, label = line.strip().rsplit(maxsplit=2)
                 if subset == 'eval' or subset == 'test':
                     file_list.append(utt)
                     d_meta[utt] = 1 if label == 'bonafide' else 0

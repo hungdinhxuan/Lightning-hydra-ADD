@@ -80,6 +80,7 @@ class DataModule(BaseNormalDataModule):
             padding_type = _get_arg(a, "padding_type", "repeat")
             random_start = bool(_get_arg(a, "random_start", False))
             view_padding_configs = _get_arg(a, "view_padding_configs", None)
+            view_lengths_samples = _get_arg(a, "view_lengths_samples", None)
 
             def _collate(batch):
                 return multi_view_collate_fn(
@@ -89,6 +90,7 @@ class DataModule(BaseNormalDataModule):
                     padding_type=padding_type,
                     random_start=random_start,
                     view_padding_configs=view_padding_configs,
+                    view_lengths_samples=view_lengths_samples,
                 )
         self.collate_fn = _collate
 
@@ -109,7 +111,7 @@ class DataModule(BaseNormalDataModule):
             pin_memory=self.hparams.pin_memory,
             collate_fn=self.collate_fn,
             drop_last=True,
-            persistent_workers=bool(self.hparams.num_workers),
+            **self._loader_kwargs(),
         )
         return self._apply_epoch_batches(loader, split="train", drop_last=True)
 
@@ -120,7 +122,7 @@ class DataModule(BaseNormalDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             collate_fn=self.collate_fn,
-            persistent_workers=bool(self.hparams.num_workers),
+            **self._loader_kwargs(),
         )
         return self._apply_epoch_batches(loader, split="dev", drop_last=False)
 
@@ -131,10 +133,10 @@ class DataModule(BaseNormalDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             collate_fn=self.eval_collator,
-            persistent_workers=bool(self.hparams.num_workers),
+            **self._loader_kwargs(),
         )
         return self._apply_epoch_batches(loader, split="eval", drop_last=False)
 
 
 # Backward-compatible alias for explicit optimized naming.
-NormalDataModuleMV = NormalDataModule
+NormalDataModuleMV = DataModule

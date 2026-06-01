@@ -13,6 +13,8 @@ args:
   wds_shard_shuffle: 100
   wds_sample_shuffle: 2000
   wds_eval_return_utt_id: true
+  wds_prefetch_factor: 8
+  wds_persistent_workers: true
 
   view_padding_configs:
     "1":

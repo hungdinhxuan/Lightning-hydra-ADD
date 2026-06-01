@@ -171,3 +171,4 @@ notebooks/**/*.csv
 .cache/
 pretrained/
 tmp/
+reports/

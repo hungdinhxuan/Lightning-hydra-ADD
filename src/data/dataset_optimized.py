@@ -5,7 +5,6 @@
 from __future__ import annotations
 
 import os
-import shlex
 import io
 import random
 from dataclasses import dataclass
@@ -20,6 +19,7 @@ from webdataset import WebLoader
 
 from src.data.components.dataio import pad_tensor
 from src.data.components.augwrapper import SUPPORTED_AUGMENTATION
+from src.data.wds_keys import make_wds_key
 
 for _aug in SUPPORTED_AUGMENTATION:
     exec(f"from src.data.components.augwrapper import {_aug}")
@@ -54,7 +54,7 @@ class ProtocolEntry:
 
     @property
     def key(self) -> str:
-        return Path(self.relpath).with_suffix("").as_posix().replace("/", "_")
+        return make_wds_key(self.relpath)
 
 
 def read_protocol(protocol_path: str) -> List[ProtocolEntry]:
@@ -64,7 +64,7 @@ def read_protocol(protocol_path: str) -> List[ProtocolEntry]:
             raw = line.strip()
             if not raw or raw.startswith("#"):
                 continue
-            parts = shlex.split(raw)
+            parts = raw.rsplit(maxsplit=2)
             if len(parts) < 3:
                 continue
             relpath, subset, label = parts[0], parts[1].lower(), parts[2].lower()
@@ -247,6 +247,7 @@ def get_wds_dataset(
         resampled=False,
         handler=wds.warn_and_continue,
         nodesplitter=nodesplitter,
+        empty_check=False,
     )
     ds = ds.map(_decode_sample_from_bytes)
     ds = ds.map(lambda s: _normalize_sr(s, sample_rate))
@@ -348,6 +349,7 @@ def build_wds_from_args(args: Any, subset: str, *, include_eval_key: bool = Fals
         sample_shuffle=sample_shuffle,
         include_eval_key=include_eval_key,
         use_brace_pattern=use_braces,
+        nodesplitter=wds.split_by_node if subset == "train" else None,
         augmentation_methods=augmentation_methods,
         augmentation_args=args,
         augmentation_data_dir=augmentation_data_dir,
@@ -370,6 +372,8 @@ def get_wds_dataloader(
     sample_shuffle: int = 2000,
     include_eval_key: bool = False,
     use_brace_pattern: bool = True,
+    prefetch_factor: Optional[int] = None,
+    persistent_workers: Optional[bool] = None,
     collate_fn=None,
     augmentation_methods: Optional[List[str]] = None,
     augmentation_args: Optional[Any] = None,
@@ -394,11 +398,17 @@ def get_wds_dataloader(
     )
     if collate_fn is None:
         collate_fn = make_wds_collate_fn(fallback_pad=True)
+    loader_kwargs = {}
+    if num_workers > 0 and prefetch_factor is not None:
+        loader_kwargs["prefetch_factor"] = int(prefetch_factor)
+    if persistent_workers is None:
+        persistent_workers = bool(num_workers)
     return WebLoader(
         dataset,
         batch_size=batch_size,
         num_workers=num_workers,
         pin_memory=pin_memory,
         collate_fn=collate_fn,
-        persistent_workers=bool(num_workers),
+        persistent_workers=bool(persistent_workers) and bool(num_workers),
+        **loader_kwargs,
     )

@@ -47,6 +47,9 @@ class MDTLitModule(AdapterLitModule):
         self.train_loss_detail = {}
         self.val_loss_detail = {}
         self.weighted_views = weighted_views
+
+    def _metric_on_device(self, metric):
+        return metric.to(self.device)
         
         
     def init_criteria(self, **kwargs) -> torch.nn.Module:
@@ -168,6 +171,7 @@ class MDTLitModule(AdapterLitModule):
             # Initialize train_view_acc dictionary
             self.train_view_acc[k] = self.train_view_acc.get(
                 k, BinaryAccuracy())
+            self.train_view_acc[k] = self._metric_on_device(self.train_view_acc[k])
             _preds, _targets = v[0]
             self.train_view_acc[k](_preds, _targets)
 
@@ -176,6 +180,7 @@ class MDTLitModule(AdapterLitModule):
             # Initialize train_loss_detail dictionary
             self.train_loss_detail[k] = self.train_loss_detail.get(
                 k, MeanMetric())
+            self.train_loss_detail[k] = self._metric_on_device(self.train_loss_detail[k])
             self.train_loss_detail[k](v)
 
         # Update and log train loss and accuracy
@@ -218,6 +223,7 @@ class MDTLitModule(AdapterLitModule):
         for k, v in view_acc.items():
             # Initialize val_view_acc dictionary
             self.val_view_acc[k] = self.val_view_acc.get(k, BinaryAccuracy())
+            self.val_view_acc[k] = self._metric_on_device(self.val_view_acc[k])
             _preds, _targets = v[0]
             self.val_view_acc[k](_preds, _targets)
             
@@ -225,6 +231,7 @@ class MDTLitModule(AdapterLitModule):
         for k, v in loss_detail.items():
             # Initialize val_loss_detail dictionary
             self.val_loss_detail[k] = self.val_loss_detail.get(k, MeanMetric())
+            self.val_loss_detail[k] = self._metric_on_device(self.val_loss_detail[k])
             self.val_loss_detail[k](v)
 
         # Update and log val loss and accuracy

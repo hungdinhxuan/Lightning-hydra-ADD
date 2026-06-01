@@ -424,7 +424,7 @@ class NormalMDTDataModule(LightningDataModule):
         
         # Parse all data in single pass
         for line in l_meta:
-            utt, subset, label = line.strip().split()
+            utt, subset, label = line.strip().rsplit(maxsplit=2)
             label_val = 1 if label == 'bonafide' else 0
             
             if is_train and subset == 'train':

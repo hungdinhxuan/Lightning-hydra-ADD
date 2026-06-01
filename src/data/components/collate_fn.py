@@ -2,11 +2,35 @@ import torch
 from src.data.components.dataio import pad
 import numpy as np
 from torch import Tensor
-from typing import List, Dict, Tuple, Union
+from typing import List, Dict, Tuple, Union, Optional, Any
 from src.core_scripts.data_io import wav_augmentation as nii_wav_aug
 
 
-def multi_view_collate_fn(batch, views=[1, 2, 3, 4], sample_rate=16000, padding_type='repeat', random_start=False, view_padding_configs: Dict[str, Dict[str, bool]] = None):
+def resolve_view_length_samples(view_key: str, sample_rate: int = 16000) -> int:
+    """Map a view config key to crop length in samples.
+
+    Supports legacy integer-second keys (``'1'``..``'4'``), float-second keys
+    (``'0.5'``, ``'1.5'``), and explicit sample-count keys (``'8000'``).
+    """
+    if view_key.isdigit() and int(view_key) >= 1000:
+        return int(view_key)
+    return int(float(view_key) * sample_rate)
+
+
+def build_view_padding_configs_from_lengths(
+    view_lengths_samples: List[int],
+    *,
+    padding_type: str = "repeat",
+    random_start: bool = True,
+) -> Dict[str, Dict[str, Any]]:
+    """Build per-view padding configs keyed by sample length strings."""
+    return {
+        str(length): {"padding_type": padding_type, "random_start": random_start}
+        for length in view_lengths_samples
+    }
+
+
+def multi_view_collate_fn(batch, views=[1, 2, 3, 4], sample_rate=16000, padding_type='repeat', random_start=False, view_padding_configs: Dict[str, Dict[str, bool]] = None, view_lengths_samples: Optional[List[int]] = None):
     '''
     Collate function to pad each sample in a batch to multiple views
     :param batch: list of tuples (x, label)
@@ -25,6 +49,13 @@ def multi_view_collate_fn(batch, views=[1, 2, 3, 4], sample_rate=16000, padding_
         2: (tensor([[1, 2, 3, 0], [1, 2, 3, 4]]), tensor([0, 1]))
     }
     '''
+    if view_lengths_samples is not None:
+        view_padding_configs = build_view_padding_configs_from_lengths(
+            view_lengths_samples,
+            padding_type=padding_type,
+            random_start=random_start,
+        )
+
     # Set default configurations if none provided
     if view_padding_configs is None:
         view_padding_configs = {
@@ -32,32 +63,29 @@ def multi_view_collate_fn(batch, views=[1, 2, 3, 4], sample_rate=16000, padding_
             for i in range(1, 5)
         }
 
-    # Extract views from config and convert to integers
-    views = [int(view) for view in view_padding_configs]
-
-    view_batches = {view: [] for view in views}
-    # Warning: padding_type and random_start are not used in this function
-    # print("Warning: padding_type and random_start are not used in this function. Please use view_padding_configs instead")
+    view_keys = list(view_padding_configs.keys())
+    view_batches = {view_key: [] for view_key in view_keys}
 
     # Process each sample in the batch
     for x, label in batch:
         # Pad each sample for each view
-        for view in views:
-            view_length = view * sample_rate
-            x_view = pad(x, padding_type=view_padding_configs[str(view)]['padding_type'],
-                         max_len=view_length, random_start=view_padding_configs[str(view)]['random_start'])
+        for view_key in view_keys:
+            view_length = resolve_view_length_samples(view_key, sample_rate)
+            cfg = view_padding_configs[view_key]
+            x_view = pad(x, padding_type=cfg['padding_type'],
+                         max_len=view_length, random_start=cfg['random_start'])
             # Check if x_view is Tensor or numpy array and convert to Tensor if necessary
             if not torch.is_tensor(x_view):
 
                 x_view = torch.from_numpy(x_view)
-            view_batches[view].append((x_view, label))
+            view_batches[view_key].append((x_view, label))
 
     # Convert lists to tensors
-    for view in views:
-        sequences, labels = zip(*view_batches[view])
+    for view_key in view_keys:
+        sequences, labels = zip(*view_batches[view_key])
         padded_sequences = torch.stack(sequences)
         labels = torch.tensor(labels, dtype=torch.long)
-        view_batches[view] = (padded_sequences, labels)
+        view_batches[view_key] = (padded_sequences, labels)
 
     return view_batches
 

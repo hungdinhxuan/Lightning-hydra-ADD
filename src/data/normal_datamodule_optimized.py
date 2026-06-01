@@ -92,6 +92,10 @@ class NormalDataModule(LightningDataModule):
         if n_samples <= 0:
             return None
         batch_size = int(self.batch_size_per_device)
+        if split == "train" and self.trainer is not None and self.trainer.world_size > 1:
+            # Train shards are split across DDP ranks; each rank must run the
+            # same number of global batches, even when shard sizes differ.
+            batch_size = int(self.hparams.batch_size)
         if batch_size <= 0:
             return None
         if drop_last:
@@ -118,6 +122,18 @@ class NormalDataModule(LightningDataModule):
         if n_batches <= 0:
             return loader
         return loader.with_epoch(n_batches)
+
+    def _loader_kwargs(self) -> Dict[str, Any]:
+        kwargs: Dict[str, Any] = {}
+        num_workers = int(self.hparams.num_workers)
+        prefetch_factor = _get_arg(self.args, "wds_prefetch_factor", None)
+        if num_workers > 0 and prefetch_factor is not None:
+            kwargs["prefetch_factor"] = int(prefetch_factor)
+        persistent = _get_arg(self.args, "wds_persistent_workers", None)
+        if persistent is None:
+            persistent = bool(num_workers)
+        kwargs["persistent_workers"] = bool(persistent) and bool(num_workers)
+        return kwargs
 
     @property
     def num_classes(self) -> int:
@@ -149,7 +165,7 @@ class NormalDataModule(LightningDataModule):
             pin_memory=self.hparams.pin_memory,
             collate_fn=self.collate_fn,
             drop_last=True,
-            persistent_workers=bool(self.hparams.num_workers),
+            **self._loader_kwargs(),
         )
         return self._apply_epoch_batches(loader, split="train", drop_last=True)
 
@@ -160,7 +176,7 @@ class NormalDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             collate_fn=self.collate_fn,
-            persistent_workers=bool(self.hparams.num_workers),
+            **self._loader_kwargs(),
         )
         return self._apply_epoch_batches(loader, split="dev", drop_last=False)
 
@@ -174,6 +190,6 @@ class NormalDataModule(LightningDataModule):
             num_workers=self.hparams.num_workers,
             pin_memory=self.hparams.pin_memory,
             collate_fn=self.collate_fn,
-            persistent_workers=bool(self.hparams.num_workers),
+            **self._loader_kwargs(),
         )
         return self._apply_epoch_batches(loader, split="eval", drop_last=False)

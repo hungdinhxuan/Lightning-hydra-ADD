@@ -65,7 +65,7 @@ def construct_benchmark_command(config: BenchmarkConfig) -> list:
     protocol_path = str(config.protocol_path.absolute())
     
     cmd = [
-        'python', 'src/train.py',
+        sys.executable, 'src/train.py',
         f'experiment={config.yaml_config}',
         f'++model.score_save_path={score_save_path}',
         f'++data.data_dir={data_dir}',
@@ -220,7 +220,7 @@ def evaluate_results(
     try:
         result = subprocess.run(
             [
-                'python',
+                sys.executable,
                 'scripts/benchmark_py/score_file_to_eer.py',
                 str(score_file),
                 str(protocol_file),

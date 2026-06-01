@@ -6,6 +6,7 @@ Handles pooled and average EER calculations.
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 from typing import List, Optional
 from .utils import print_color, Color
@@ -53,7 +54,7 @@ def calculate_pooled_eer(
     
     # Build command array
     cmd = [
-        'python',
+        sys.executable,
         'scripts/calculate_pooled_eer.py',
         str(results_folder),
         normalized_yaml,

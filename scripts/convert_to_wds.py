@@ -5,11 +5,13 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import sys
+import time
 from pathlib import Path
-from typing import Dict
+from typing import Dict, List
 
 # Ensure `src` is importable when running this file directly.
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -25,6 +27,7 @@ except ModuleNotFoundError as exc:
     ) from exc
 
 from src.data.dataset_optimized import read_protocol, split_entries_by_subset
+from src.data.wds_keys import WDS_KEY_VERSION
 
 
 def _ensure_parent(path: Path) -> None:
@@ -34,6 +37,20 @@ def _ensure_parent(path: Path) -> None:
 def _load_bytes(path: Path) -> bytes:
     with open(path, "rb") as f:
         return f.read()
+
+
+def _file_fingerprint(path: Path) -> Dict[str, object]:
+    stat = path.stat()
+    digest = hashlib.sha256()
+    with open(path, "rb") as f:
+        for chunk in iter(lambda: f.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return {
+        "path": str(path),
+        "size_bytes": stat.st_size,
+        "mtime_ns": stat.st_mtime_ns,
+        "sha256": digest.hexdigest(),
+    }
 
 
 def _write_subset(
@@ -91,6 +108,8 @@ def build_webdataset(
 
     summary: Dict[str, Dict[str, int]] = {}
     for subset in ("train", "dev", "eval"):
+        for stale_shard in out_root.glob(f"{subset}-*.tar"):
+            stale_shard.unlink()
         summary[subset] = _write_subset(
             subset=subset,
             entries=by_subset.get(subset, []),
@@ -99,6 +118,59 @@ def build_webdataset(
             shard_size_bytes=maxsize,
         )
     return summary
+
+
+def build_manifest(input_wav_dir: str, protocol_path: str, output_dir: str, summary: Dict[str, Dict[str, int]]) -> Dict[str, object]:
+    out_root = Path(output_dir)
+    shards: List[Dict[str, object]] = []
+    for shard in sorted(out_root.glob("*.tar")):
+        stat = shard.stat()
+        shards.append(
+            {
+                "path": str(shard),
+                "name": shard.name,
+                "size_bytes": stat.st_size,
+                "mtime_ns": stat.st_mtime_ns,
+            }
+        )
+    return {
+        "created_at_unix": time.time(),
+        "converter": {
+            "key_version": WDS_KEY_VERSION,
+        },
+        "input_wav_dir": str(Path(input_wav_dir).resolve()),
+        "protocol": _file_fingerprint(Path(protocol_path)),
+        "output_dir": str(out_root.resolve()),
+        "summary": summary,
+        "shards": shards,
+    }
+
+
+def write_reports(output_dir: str, manifest: Dict[str, object]) -> None:
+    out_root = Path(output_dir)
+    manifest_path = out_root / "manifest.json"
+    report_json = out_root / "convert_report.json"
+    report_md = out_root / "convert_report.md"
+    manifest_path.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+    report_json.write_text(json.dumps(manifest, indent=2, sort_keys=True), encoding="utf-8")
+
+    summary = manifest["summary"]
+    shards = manifest["shards"]
+    lines = [
+        "# WebDataset Convert Report",
+        "",
+        f"- Input: `{manifest['input_wav_dir']}`",
+        f"- Protocol: `{manifest['protocol']['path']}`",
+        f"- Output: `{manifest['output_dir']}`",
+        f"- Shards: {len(shards)}",
+        "",
+        "| Split | Written | Skipped |",
+        "| --- | ---: | ---: |",
+    ]
+    for split in ("train", "dev", "eval"):
+        stats = summary.get(split, {})
+        lines.append(f"| {split} | {stats.get('written', 0)} | {stats.get('skipped', 0)} |")
+    report_md.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def parse_args() -> argparse.Namespace:
@@ -127,6 +199,13 @@ def main() -> None:
         output_dir=output_dir,
         shard_size_mb=args.shard_size_mb,
     )
+    manifest = build_manifest(
+        input_wav_dir=args.input_wav_dir,
+        protocol_path=args.protocol_path,
+        output_dir=output_dir,
+        summary=summary,
+    )
+    write_reports(output_dir, manifest)
     print(f"WebDataset shards written to: {output_dir}")
     for subset, stats in summary.items():
         print(f"{subset}: written={stats['written']} skipped={stats['skipped']}")

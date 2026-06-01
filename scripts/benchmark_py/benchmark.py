@@ -107,7 +107,7 @@ def validate_arguments(args: argparse.Namespace) -> bool:
     """
     invalid_overrides = [
         arg for arg in args.extra_overrides
-        if not (arg.startswith("+") or arg.startswith("++"))
+        if not (arg.startswith("+") or arg.startswith("++") or ("=" in arg and not arg.startswith("-")))
     ]
     if invalid_overrides:
         print_color(
