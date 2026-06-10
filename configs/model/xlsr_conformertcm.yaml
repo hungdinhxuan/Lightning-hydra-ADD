@@ -1,12 +1,17 @@
 _target_: src.models.xlsr_conformertcm_normal_module.XLSRConformertcmNormalLitModule
 
 optimizer:
-  _target_: torch.optim.Adam
+  _target_: torch.optim.AdamW
   _partial_: true
-  lr: 0.000001
+  lr: 0.00001 # 1e-5
   weight_decay: 0.0001
 
-scheduler: null
+scheduler:
+  _target_: torch.optim.lr_scheduler.ReduceLROnPlateau
+  _partial_: true
+  factor: 0.5
+  patience: 3
+  min_lr: 1e-6
 
 args:
   conformer:

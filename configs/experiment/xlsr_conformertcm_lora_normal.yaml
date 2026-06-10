@@ -1,0 +1,57 @@
+# @package _global_
+
+# to execute this experiment run:
+# python train.py experiment=example
+
+defaults:
+  - override /data: default_optimized
+  - override /model: xlsr_conformertcm
+  - override /callbacks: lora
+  - override /trainer: default
+
+# all parameters below will be merged with parameters from default configurations set above
+# this allows you to overwrite only specified parameters
+
+tags: ["default_optimized", "xlsr_conformertcm_MDT_LoRA"]
+
+seed: 1234
+
+trainer:
+  max_epochs: 100
+  gradient_clip_val: 0.0
+  accelerator: cuda
+
+model:
+  optimizer:
+    lr: 0.000001
+    weight_decay: 0.0001
+  net: null
+  scheduler: null
+  compile: false
+  cross_entropy_weight: [0.5, 0.5]
+  adapter_type: lora
+  args:
+    conformer:
+      emb_size: 144
+      heads: 4
+      kernel_size: 31
+      n_encoders: 4
+      type: "conv"
+      pooling: "first"
+    adapter:
+      r: 16
+      target_modules: ["q_proj", "v_proj", "k_proj"]
+      modules_to_save: []
+      lora_dropout: 0.0
+      lora_alpha: 8
+
+data:
+  batch_size: 32
+  data_dir: ""
+  num_workers: 8
+  pin_memory: true
+  args:
+    augmentation_methods: ["RawBoostdf", "none"]
+    protocol_path: ""
+    padding_type: repeat
+    random_start: True
